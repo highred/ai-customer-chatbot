@@ -1,53 +1,67 @@
-// -------- elements -----------------------------------------------
-const chat     = document.getElementById("chat");
-const input    = document.getElementById("msg");
-const sendBtn  = document.getElementById("send");
-const spinner  = document.getElementById("spinner");
-const modelSel = document.getElementById("modelSel");
+// --- refs ---
+const chat=document.getElementById("chat");
+const textarea=document.getElementById("msg");
+const sendBtn=document.getElementById("send");
+const spinner=document.getElementById("spinner");
+const modeBtn=document.getElementById("modeBtn");
 
-// -------- helpers -------------------------------------------------
-function append(who,text){
-  chat.innerHTML += `<p><b>${who}:</b> ${text}</p>`;
-  chat.scrollTop  = chat.scrollHeight;
-}
-function setLoading(s){
-  spinner.style.display = s ? "inline-block" : "none";
-  sendBtn.disabled = s; input.disabled = s; modelSel.disabled = s;
-}
+const adminToggle=document.getElementById("adminToggle");
+const adminPanel=document.getElementById("adminPanel");
+const closeAdmin=document.getElementById("closeAdmin");
+const modelSel=document.getElementById("modelSel");
+const faqForm=document.getElementById("faqForm");
+const clearBtn=document.getElementById("clearBtn");
+const uploadStatus=document.getElementById("uploadStatus");
 
-// -------- send function ------------------------------------------
+let isAdmin=false, panelVisible=false;
+
+// --- helpers ---
+function append(who,text){chat.innerHTML+=`<p><b>${who}:</b> ${text}</p>`;chat.scrollTop=chat.scrollHeight}
+function busy(b){spinner.style.display=b?"inline-block":"none";sendBtn.disabled=textarea.disabled=modelSel.disabled=b}
+
+// --- send ---
 async function send(){
-  const q = input.value.trim();
-  if(!q) return;
-  append("You", q);
-  input.value = ""; setLoading(true);
-
-  const r = await fetch("/chat", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({message:q, model:modelSel.value})
-  });
-  const data = await r.json();
-  append("Bot", data.answer || data.error);
-  setLoading(false);
+  const q=textarea.value.trim(); if(!q) return;
+  append("You",q); textarea.value=""; busy(true);
+  const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({message:q,model:modelSel.value})});
+  const data=await r.json(); append("Bot",data.answer||data.error); busy(false);
 }
-sendBtn.onclick = send;
-input.onkeydown = e => { if(e.key==="Enter"){ e.preventDefault(); send(); }};
+sendBtn.onclick=send;
+textarea.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}});
 
-// -------- FAQ upload ---------------------------------------------
-document.getElementById("faqForm").onsubmit = async e => {
+// --- admin login + toggle ---
+adminToggle.onclick=async()=>{
+  if(!isAdmin){
+    const pw=prompt("Admin password:"); if(!pw) return;
+    const res=await fetch("/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({password:pw})});
+    if(res.status!==204){alert("Wrong password");return;}
+    isAdmin=true;
+  }
+  panelVisible=!panelVisible;
+  adminPanel.classList.toggle("hidden",!panelVisible);
+  adminToggle.textContent=panelVisible?"Hide Admin":"Admin Panel";
+};
+closeAdmin.onclick=()=>{panelVisible=false;adminPanel.classList.add("hidden");adminToggle.textContent="Admin Panel";};
+
+// --- FAQ upload ---
+faqForm.onsubmit=async e=>{
   e.preventDefault();
-  const fileField = document.getElementById("faqFile");
-  if (!fileField.files.length){ alert("Choose a file first"); return; }
-  const fd = new FormData(); fd.append("file", fileField.files[0]);
-  const res = await fetch("/upload",{method:"POST",body:fd});
-  document.getElementById("uploadStatus").textContent =
-    res.ok ? await res.text() : "Upload failed";
+  const f=document.getElementById("faqFile").files[0];
+  if(!f) return alert("Choose file");
+  const fd=new FormData(); fd.append("file",f);
+  const r=await fetch("/upload",{method:"POST",body:fd});
+  uploadStatus.textContent=r.ok?await r.text():"Upload failed";
 };
 
-// -------- dark mode toggle ---------------------------------------
-document.getElementById("modeBtn").onclick = () => {
-  document.body.classList.toggle("dark");
-  const m = document.getElementById("modeBtn");
-  m.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
+// --- clear ---
+clearBtn.onclick=async()=>{
+  if(!confirm("Clear conversation & FAQ?"))return;
+  await fetch("/admin/clear",{method:"POST"}); chat.innerHTML=""; uploadStatus.textContent="";
+};
+
+// --- dark mode ---
+modeBtn.onclick=()=>{document.body.classList.toggle("dark");
+  modeBtn.textContent=document.body.classList.contains("dark")?"☀️":"🌙";
 };
