@@ -119,11 +119,10 @@ faqForm.onsubmit=async e=>{
   const fd=new FormData();
   [...faqFiles.files].forEach(f=>fd.append("files",f));
   await fetch("/admin/upload",{method:"POST",body:fd});
-  faqFiles.value="";   // reset
-  refreshFaqList();
+  faqFiles.value=""; refreshFaqList();
 };
 
-// ---------- clear conversation (not FAQs) ----------
+// ---------- clear conversation ----------
 clearBtn.onclick=async()=>{
   if(!confirm("Clear chat history (FAQ files stay)?"))return;
   await fetch("/admin/clear",{method:"POST"});

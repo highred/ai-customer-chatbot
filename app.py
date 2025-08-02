@@ -4,6 +4,14 @@ from flask import Flask, request, jsonify, render_template, session
 from werkzeug.utils import secure_filename
 import openai
 
+# ---------- text extract libs ----------
+from PyPDF2 import PdfReader
+import docx  # python-docx
+try:
+    import textract  # optional, legacy .doc
+except ImportError:
+    textract = None
+
 # -------------------------------------------------------------------
 openai.api_key   = os.getenv("OPENAI_API_KEY")
 ADMIN_PASSWORD   = os.getenv("ADMIN_PASSWORD", "changeme123")
@@ -21,31 +29,72 @@ PERSONA_FILE     = os.path.join(BASE_DIR, "personas.json")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# ---------------- Helper for FAQ index -----------------------------
+# ---------------- Helper: FAQ index --------------------------------
 def load_index():
     if not os.path.exists(INDEX_FILE): return []
     with open(INDEX_FILE,"r",encoding="utf-8") as f: return json.load(f)
 
 def save_index(idx):
-    with LOCK, open(INDEX_FILE,"w",encoding="utf-8") as f: json.dump(idx, f, indent=2)
+    with LOCK:
+        with open(INDEX_FILE,"w",encoding="utf-8") as f: json.dump(idx, f, indent=2)
 
+# ---------------- Text extraction ----------------------------------
+def extract_text(path, ext):
+    try:
+        if ext == ".txt":
+            with open(path,"r",encoding="utf-8",errors="ignore") as f:
+                return f.read()
+        if ext == ".pdf":
+            out=[]; reader=PdfReader(path)
+            for page in reader.pages: out.append(page.extract_text() or "")
+            return "\n".join(out)
+        if ext == ".docx":
+            d = docx.Document(path)
+            return "\n".join(p.text for p in d.paragraphs)
+        if ext == ".doc" and textract:
+            return textract.process(path).decode("utf-8","ignore")
+    except Exception as e:
+        print("Extraction failed:", e)
+    return ""  # fallback
+
+# ---------------- Add / delete doc ---------------------------------
 def add_doc(file_storage):
     idx  = load_index()
     orig = secure_filename(file_storage.filename)
+    ext  = os.path.splitext(orig)[1].lower()
     uid  = str(uuid.uuid4())
-    fname= f"{uid}_{orig}"
-    path = os.path.join(UPLOAD_DIR,fname)
-    file_storage.save(path)
-    idx.append({"id":uid,"name":orig,"file":fname,"size":os.path.getsize(path),
-                "uploaded":datetime.utcnow().isoformat()+"Z"})
+
+    # save binary/original
+    bin_fname = f"{uid}{ext}"
+    bin_path  = os.path.join(UPLOAD_DIR, bin_fname)
+    file_storage.save(bin_path)
+
+    # extract text and store as .txt (even for txt originals, we point to same file)
+    if ext == ".txt":
+        txt_fname, txt_path = bin_fname, bin_path
+    else:
+        txt_fname = f"{uid}.txt"
+        txt_path  = os.path.join(UPLOAD_DIR, txt_fname)
+        text = extract_text(bin_path, ext)
+        with open(txt_path,"w",encoding="utf-8") as f: f.write(text)
+
+    idx.append({
+        "id": uid,
+        "name": orig,
+        "file": bin_fname,
+        "text_file": txt_fname,
+        "size": os.path.getsize(bin_path),
+        "uploaded": datetime.utcnow().isoformat()+"Z"
+    })
     save_index(idx)
 
 def delete_doc(doc_id):
     idx = load_index()
     doc = next((d for d in idx if d["id"]==doc_id), None)
     if not doc: return False
-    try: os.remove(os.path.join(UPLOAD_DIR, doc["file"]))
-    except FileNotFoundError: pass
+    for f in (doc["file"], doc["text_file"]):
+        try: os.remove(os.path.join(UPLOAD_DIR, f))
+        except FileNotFoundError: pass
     idx = [d for d in idx if d["id"]!=doc_id]
     save_index(idx); return True
 
@@ -57,7 +106,8 @@ def load_personas():
     with open(PERSONA_FILE,"r",encoding="utf-8") as f: return json.load(f)
 
 def save_personas(data):
-    with LOCK, open(PERSONA_FILE,"w",encoding="utf-8") as f: json.dump(data,f,indent=2)
+    with LOCK:
+        with open(PERSONA_FILE,"w",encoding="utf-8") as f: json.dump(data,f,indent=2)
 
 PERSONAS = load_personas()
 
@@ -122,12 +172,13 @@ def clear_conv():
 def combined_faq(limit_chars=4000):
     txt=""
     for doc in load_index():
-        path=os.path.join(UPLOAD_DIR,doc["file"])
+        path = os.path.join(UPLOAD_DIR, doc["text_file"])
         try:
             with open(path,"r",encoding="utf-8",errors="ignore") as f:
-                txt += f"\n--- {doc['name']} ---\n" + f.read()
+                content = f.read()
         except FileNotFoundError:
-            continue
+            content = ""
+        txt += f"\n--- {doc['name']} ---\n{content}"
         if len(txt)>=limit_chars: break
     return txt[:limit_chars]
 
@@ -142,7 +193,7 @@ def chat():
 
     history   = CONV_HISTORY.setdefault(sid(),[])
     history.append({"role":"user","content":question})
-    history   = history[-20:]   # trim
+    history   = history[-20:]
 
     sys_prompt = (f"{persona}\n\nWhen relevant, answer using these FAQs:\n```\n"
                   f"{combined_faq()}\n```")
