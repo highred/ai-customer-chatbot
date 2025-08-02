@@ -5,40 +5,58 @@
   <title>AI Customer Chatbot</title>
   <style>
     :root{
-      --bg:#ffffff; --fg:#000000; --panel:#f5f5f5;
+      --bg:#ffffff; --fg:#000000; --panel:#f5f5f5; --accent:#008cff;
     }
     .dark{
-      --bg:#1e1e1e; --fg:#f1f1f1; --panel:#2b2b2b;
+      --bg:#1e1e1e; --fg:#f1f1f1; --panel:#2b2b2b; --accent:#4499ff;
     }
+
+    /* -------- base -------- */
     body{
       background:var(--bg); color:var(--fg);
-      font-family:sans-serif; max-width:700px; margin:40px auto;
+      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+      max-width:700px; margin:40px auto; line-height:1.5;
       transition:background .3s,color .3s;
     }
-    #chat{
-      border:1px solid #ccc; height:300px; overflow:auto;
-      padding:8px; background:var(--panel);
-    }
-    #msg{width:80%}
-    button{cursor:pointer}
+    h2{margin-bottom:20px}
 
-    /* --- 3-dot loader ---------------------------- */
-    #spinner{
-      display:none;
-      width:36px; height:12px;
-      position:relative; margin-left:8px;
+    /* -------- chat window -------- */
+    #chat{
+      background:var(--panel);
+      border:1px solid #ccc; border-radius:10px;
+      height:300px; overflow:auto; padding:16px;
     }
+
+    /* -------- input row -------- */
+    #msg{
+      width:78%; padding:8px; border-radius:10px;
+      border:1px solid #ccc; outline:none;
+    }
+    button{
+      padding:8px 14px; border:none; border-radius:10px;
+      background:var(--accent); color:#fff; font-weight:bold;
+      cursor:pointer; transition:background .2s;
+    }
+    button:disabled{opacity:.5; cursor:default}
+    button:hover:not(:disabled){background:#0069d9}
+
+    /* dark-mode button */
+    #modeBtn{background:transparent;border:none;font-size:20px;cursor:pointer}
+
+    /* -------- spinner (3-dot) -------- */
+    #spinner{display:none;width:42px;height:14px;position:relative;margin-left:10px}
     #spinner div{
-      position:absolute; top:0; width:8px; height:8px;
-      border-radius:50%; background:var(--fg);
-      animation: bounce 0.8s infinite;
+      position:absolute;top:0;width:10px;height:10px;border-radius:50%;
+      background:var(--accent);animation:bounce .8s infinite;
     }
-    #spinner div:nth-child(2){ left:12px; animation-delay:0.1s }
-    #spinner div:nth-child(3){ left:24px; animation-delay:0.2s }
-    @keyframes bounce{
-      0%,80%,100%{transform:scale(0)}
-      40%{transform:scale(1)}
-    }
+    #spinner div:nth-child(2){left:14px;animation-delay:.1s}
+    #spinner div:nth-child(3){left:28px;animation-delay:.2s}
+    @keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
+
+    /* -------- FAQ upload -------- */
+    form,label,input[type=file]{font-size:14px}
+    #faqFile{margin-left:6px}
+    #uploadStatus{margin-top:4px;color:var(--accent)}
   </style>
 </head>
 <body>
@@ -48,13 +66,10 @@
 </h2>
 
 <div id="chat"></div><br>
+
 <input id="msg" placeholder="Type a question…" autocomplete="off"/>
 <button id="send">Send</button>
-
-<!-- 3-dot spinner -->
-<span id="spinner">
-  <div></div><div></div><div></div>
-</span>
+<span id="spinner"><div></div><div></div><div></div></span>
 
 <br><br>
 <form id="faqForm">
