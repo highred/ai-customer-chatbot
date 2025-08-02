@@ -22,18 +22,23 @@
     #msg{width:80%}
     button{cursor:pointer}
 
-    /* --- real spinner --- */
+    /* --- 3-dot loader ---------------------------- */
     #spinner{
       display:none;
-      width:18px; height:18px;
-      border:3px solid var(--fg);
-      border-top:3px solid transparent;
-      border-radius:50%;
-      vertical-align:middle;
-      animation: spin .8s linear infinite;
-      margin-left:6px;
+      width:36px; height:12px;
+      position:relative; margin-left:8px;
     }
-    @keyframes spin{to{transform:rotate(360deg)}}
+    #spinner div{
+      position:absolute; top:0; width:8px; height:8px;
+      border-radius:50%; background:var(--fg);
+      animation: bounce 0.8s infinite;
+    }
+    #spinner div:nth-child(2){ left:12px; animation-delay:0.1s }
+    #spinner div:nth-child(3){ left:24px; animation-delay:0.2s }
+    @keyframes bounce{
+      0%,80%,100%{transform:scale(0)}
+      40%{transform:scale(1)}
+    }
   </style>
 </head>
 <body>
@@ -45,7 +50,11 @@
 <div id="chat"></div><br>
 <input id="msg" placeholder="Type a question…" autocomplete="off"/>
 <button id="send">Send</button>
-<span id="spinner"></span>
+
+<!-- 3-dot spinner -->
+<span id="spinner">
+  <div></div><div></div><div></div>
+</span>
 
 <br><br>
 <form id="faqForm">
