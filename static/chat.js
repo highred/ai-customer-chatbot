@@ -1,4 +1,4 @@
-// ── refs ─────────────────────────────────────────────
+// ── element refs ─────────────────────────────────────────────
 const chatTab     = document.getElementById("chatTab");
 const adminTab    = document.getElementById("adminTab");
 const chatPane    = document.getElementById("chatPane");
@@ -25,13 +25,13 @@ const chunkSizeSel= document.getElementById("chunkSize");
 const tempSlider  = document.getElementById("tempSlider");
 const tempVal     = document.getElementById("tempVal");
 
-// ── mode toggle ───────────────────────────────────────
+// ── dark mode ────────────────────────────────────────────────
 modeBtn.onclick = () => {
   document.body.classList.toggle("dark");
   modeBtn.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
 };
 
-// ── tab switching ─────────────────────────────────────
+// ── tab switching ────────────────────────────────────────────
 function showChat() {
   chatTab.classList.add("active");
   adminTab.classList.remove("active");
@@ -48,11 +48,11 @@ chatTab.onclick = showChat;
 adminTab.onclick = showAdmin;
 showChat();
 
-// ── temp slider UI ────────────────────────────────────
+// ── temperature slider ───────────────────────────────────────
 tempVal.textContent = (+tempSlider.value).toFixed(2);
 tempSlider.oninput = () => tempVal.textContent = (+tempSlider.value).toFixed(2);
 
-// ── helpers ───────────────────────────────────────────
+// ── helpers ──────────────────────────────────────────────────
 const append = (who, text) => {
   chatBox.insertAdjacentHTML("beforeend", `<p><b>${who}:</b> ${text}</p>`);
   chatBox.scrollTop = chatBox.scrollHeight;
@@ -63,7 +63,7 @@ const busy = (b) => {
 };
 const j = async (url, opts={}) => (await fetch(url, opts)).json();
 
-// ── Chat send --------------------------------------------------
+// ── Chat send -------------------------------------------------
 async function send() {
   const q = textarea.value.trim();
   if (!q) return;
@@ -91,7 +91,7 @@ textarea.addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
 });
 
-// ── Personas CRUD ----------------------------------------------
+// ── Personas --------------------------------------------------
 async function loadPersonas() {
   const data = await j("/admin/personas");
   personaSel.innerHTML = "";
@@ -126,23 +126,52 @@ deletePersona.onclick = async () => {
 };
 loadPersonas();
 
-// ── Chunk size control -----------------------------------------
+// ── Chunk size control ----------------------------------------
 chunkSizeSel.value = localStorage.getItem("chunkSize") || "50";
 chunkSizeSel.onchange = () => localStorage.setItem("chunkSize", chunkSizeSel.value);
 
-// ── FAQ file upload / list -------------------------------------
+// ── FAQ upload & summary display ------------------------------
 faqForm.onsubmit = async (e) => {
   e.preventDefault();
   const fd = new FormData();
   [...faqFiles.files].forEach(f => fd.append("files", f));
-  await fetch("/admin/upload", {
+  const res = await fetch("/admin/upload", {
     method: "POST",
     headers: { "X-Chunk-Size": chunkSizeSel.value },
     body: fd
   });
+  const uploaded = await res.json();
   faqFiles.value = "";
+
   listFaqs();
+  displayUploadSummary(uploaded);
 };
+
+function displayUploadSummary(docs) {
+  const box = document.createElement("div");
+  box.style.background = "#eef";
+  box.style.border = "1px solid #99f";
+  box.style.padding = "12px";
+  box.style.margin = "14px 0";
+  box.style.borderRadius = "8px";
+
+  let html = `<b>Upload Summary</b><ul style="margin-top:6px">`;
+  docs.forEach(d => {
+    html += `<li><b>${d.name}</b>`;
+    if (d.chunks) {
+      html += ` – Chunks: ${d.chunks}, Skipped: ${d.skipped}, Tokens: ${d.token_est}, Cost: $${d.cost_est.toFixed(5)}`;
+    } else {
+      html += ` – No chunking`;
+    }
+    html += `</li>`;
+  });
+  html += `</ul>`;
+  box.innerHTML = html;
+
+  faqForm.insertAdjacentElement("afterend", box);
+}
+
+// ── FAQ list --------------------------------------------------
 async function listFaqs() {
   const docs = await j("/admin/faqs");
   faqList.innerHTML = "";
@@ -162,7 +191,7 @@ async function listFaqs() {
 }
 listFaqs();
 
-// ── Clear conversation for this session ------------------------
+// ── Clear conversation -----------------------------------------
 clearBtn.onclick = async () => {
   await fetch("/admin/clear", { method: "POST" });
   chatBox.innerHTML = "";
