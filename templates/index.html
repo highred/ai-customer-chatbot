@@ -2,18 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Chatbot Demo</title>
+  <title>AI Customer Chatbot</title>
   <style>
-    body{font-family:sans-serif;max-width:600px;margin:40px auto}
+    body{font-family:sans-serif;max-width:700px;margin:40px auto}
     #chat{border:1px solid #ccc;height:300px;overflow:auto;padding:8px}
     #msg{width:80%}
   </style>
 </head>
 <body>
 <h2>AI Customer Chatbot</h2>
+
+<!-- Chat window -->
 <div id="chat"></div><br>
 <input id="msg" placeholder="Type a question…" />
 <button id="send">Send</button>
+
+<!-- FAQ upload -->
+<br><br>
+<form id="faqForm">
+  <label>Upload FAQ (.txt):
+    <input type="file" id="faqFile" accept=".txt">
+  </label>
+  <button type="submit">Upload</button>
+</form>
+<p id="uploadStatus"></p>
 
 <script src="{{ url_for('static', filename='chat.js') }}"></script>
 </body>
