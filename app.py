@@ -5,44 +5,35 @@ from typing import Dict, List
 from flask import Flask, request, jsonify, render_template, session
 from werkzeug.utils import secure_filename
 import openai
-
-# NEW: load .env for OpenAI key
 from dotenv import load_dotenv
 load_dotenv()
 
-# ── document parsing ─────────────────────────────────────────
 from PyPDF2 import PdfReader
 from pdfminer.high_level import extract_text as pdfminer_text
 import fitz
 import docx
 import pandas as pd
 
-# ── embeddings / vector search ───────────────────────────────
 import numpy as np
 from sqlalchemy import create_engine, Column, Integer, String, LargeBinary
 from sqlalchemy.orm import declarative_base, sessionmaker
 from werkzeug.exceptions import HTTPException
 
-# ── environment / config ─────────────────────────────────────
 openai.api_key = os.getenv("OPENAI_API_KEY")
-if not openai.api_key:
-    print("❌ OPENAI_API_KEY not set. Add it to your .env file or environment.")
-    # Don't crash — error handler will catch this at runtime
 
-app            = Flask(__name__)
+app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret")
-LOCK           = threading.Lock()
+LOCK = threading.Lock()
 
-# ── paths & storage ───────────────────────────────────────────
 BASE_DIR     = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_DIR   = os.path.join(BASE_DIR, "faq_uploads")
 INDEX_FILE   = os.path.join(UPLOAD_DIR, "_index.json")
 PERSONA_FILE = os.path.join(BASE_DIR, "personas.json")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-EMBED_MODEL  = "text-embedding-3-small"
+EMBED_MODEL = "text-embedding-3-small"
 
-# ── embedding DB ──────────────────────────────────────────────
+# ── embedding DB ──
 ENG     = create_engine(f"sqlite:///{os.path.join(BASE_DIR,'faq_chunks.db')}")
 Base    = declarative_base()
 Session = sessionmaker(bind=ENG)
@@ -52,11 +43,10 @@ class Chunk(Base):
     id      = Column(Integer, primary_key=True)
     file_id = Column(String, index=True)
     text    = Column(String)
-    emb     = Column(LargeBinary)  # pickled np.array(float32)
+    emb     = Column(LargeBinary)
 
 Base.metadata.create_all(ENG)
 
-# ── helpers for database and embedding ───────────────────────
 def handle_db(fn):
     def wrapped(*a, **kw):
         sess = Session()
@@ -65,9 +55,8 @@ def handle_db(fn):
     return wrapped
 
 def embed(text):
-    vec = openai.embeddings.create(model=EMBED_MODEL,
-                                   input=text)["data"][0]["embedding"]
-    return np.array(vec, dtype="float32")
+    res = openai.embeddings.create(input=text, model=EMBED_MODEL)
+    return np.array(res.data[0].embedding, dtype="float32")
 
 @handle_db
 def add_chunk(sess, file_id, text):
@@ -83,15 +72,12 @@ def query_chunks(sess, q_emb, top_k=5):
     idxs = sims.argsort()[-top_k:][::-1]
     return [(rows[i].text, float(sims[i])) for i in idxs]
 
-# ── doc extraction ────────────────────────────────────────────
-MAX_SLICE = 6_000
-
+# ── document parsing ──
 def extract_text(path, ext):
     try:
         if ext == ".txt":
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 return f.read()
-
         if ext == ".pdf":
             txt = "\n".join(p.extract_text() or "" for p in PdfReader(path).pages[:10])
             if not txt.strip():
@@ -100,14 +86,11 @@ def extract_text(path, ext):
                 with fitz.open(path) as doc:
                     txt = "\n".join(p.get_text() for p in doc[:10])
             return txt
-
         if ext == ".docx":
             d = docx.Document(path)
             return "\n".join(p.text for p in d.paragraphs[:300])
-
         if ext in (".xls", ".xlsx"):
             return pd.read_excel(path).to_csv(index=False)
-
     except Exception as e:
         print("Extraction failed:", e)
     return ""
@@ -120,7 +103,7 @@ def build_chunks(file_id, csv_text, rows_per_chunk=50):
         chunk = header + "\n" + "\n".join(body[i:i+rows_per_chunk])
         add_chunk(file_id, chunk)
 
-# ── file storage ──────────────────────────────────────────────
+# ── file index ──
 def load_index():
     if not os.path.exists(INDEX_FILE): return []
     with open(INDEX_FILE, "r", encoding="utf-8") as f:
@@ -131,7 +114,7 @@ def save_index(idx):
         with open(INDEX_FILE, "w", encoding="utf-8") as f:
             json.dump(idx, f, indent=2)
 
-def add_doc(file_storage):
+def add_doc(file_storage, rows_per_chunk=50):
     idx  = load_index()
     orig = secure_filename(file_storage.filename)
     ext  = os.path.splitext(orig)[1].lower()
@@ -155,7 +138,7 @@ def add_doc(file_storage):
     save_index(idx)
 
     if ext in (".xls", ".xlsx"):
-        build_chunks(uid, text)
+        build_chunks(uid, text, rows_per_chunk)
 
 def delete_doc(doc_id):
     idx = load_index()
@@ -167,7 +150,7 @@ def delete_doc(doc_id):
     save_index([d for d in idx if d["id"] != doc_id])
     return True
 
-# ── personas ──────────────────────────────────────────────────
+# ── personas ──
 def load_personas():
     if not os.path.exists(PERSONA_FILE):
         with open(PERSONA_FILE, "w", encoding="utf-8") as f:
@@ -193,23 +176,21 @@ def combined_faq(limit=20000):
         if len(txt) > limit: break
     return txt[:limit]
 
-# ── session ───────────────────────────────────────────────────
+# ── session ──
 def sid(): return session.setdefault("sid", str(uuid.uuid4()))
 def is_admin(): return session.get("is_admin", False)
 
 PERSONAS = load_personas()
 CONV_HISTORY: Dict[str, List[Dict]] = {}
 
-# ══════════════════════════════════════════════════════════════
-# Routes
-# ══════════════════════════════════════════════════════════════
+# ── routes ──
 @app.route("/")
 def index():
     return render_template("index.html")
 
 @app.route("/admin/login", methods=["POST"])
 def admin_login():
-    if request.get_json(force=True).get("password") == ADMIN_PASSWORD:
+    if request.get_json(force=True).get("password") == os.getenv("ADMIN_PASSWORD", "changeme123"):
         session["is_admin"] = True
         return "", 204
     return "unauthorized", 401
@@ -235,10 +216,11 @@ def delete_persona(name):
     return "", 204
 
 @app.route("/admin/upload", methods=["POST"])
-def upload():
+def admin_upload():
     if not is_admin(): return "forbidden", 403
+    chunk_size = int(request.headers.get("X-Chunk-Size", "50"))
     for f in request.files.getlist("files"):
-        add_doc(f)
+        add_doc(f, rows_per_chunk=chunk_size)
     return "", 204
 
 @app.route("/admin/faqs", methods=["GET"])
@@ -259,21 +241,18 @@ def clear_chat():
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    data        = request.get_json(force=True)
+    data = request.get_json(force=True)
     message     = data.get("message", "").strip()
     model       = data.get("model", "gpt-4o")
     persona_key = data.get("persona", "Default")
     temp        = float(data.get("temperature", 0.2))
 
-    if not message:
-        return jsonify(error="empty"), 400
-
-    if not openai.api_key:
-        return jsonify(error="Missing OPENAI_API_KEY"), 500
+    if not message: return jsonify(error="empty"), 400
+    if not openai.api_key: return jsonify(error="Missing OPENAI_API_KEY"), 500
 
     persona = PERSONAS.get(persona_key, PERSONAS["Default"])
     history = CONV_HISTORY.setdefault(sid(), [])
-    history.append({"role": "user", "content": message})
+    history.append({ "role": "user", "content": message })
     history = history[-20:]
 
     q_emb      = embed(message)
@@ -287,11 +266,11 @@ def chat():
 
     resp = openai.chat.completions.create(
         model=model,
-        messages=[{"role": "system", "content": sys_prompt}, *history],
+        messages=[{ "role": "system", "content": sys_prompt }, *history],
         temperature=temp,
     )
     answer = resp.choices[0].message.content.strip()
-    history.append({"role": "assistant", "content": answer})
+    history.append({ "role": "assistant", "content": answer })
     CONV_HISTORY[sid()] = history
     return jsonify(answer=answer)
 
