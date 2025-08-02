@@ -1,173 +1,212 @@
-import os
-import uuid
-import json
-import threading
+import os, json, uuid, threading, pickle
 from datetime import datetime
+from typing import Dict, List
 
 from flask import Flask, request, jsonify, render_template, session
 from werkzeug.utils import secure_filename
 import openai
 
-# ---------- optional & format-specific text-extract libs ----------
-from PyPDF2 import PdfReader
-import docx          # python-docx
-try:
-    import textract  # only needed for legacy .doc
-except ImportError:
-    textract = None
+# NEW: load .env for OpenAI key
+from dotenv import load_dotenv
+load_dotenv()
 
-# ------------------------------------------------------------------
-openai.api_key  = os.getenv("OPENAI_API_KEY")
-ADMIN_PASSWORD  = os.getenv("ADMIN_PASSWORD", "changeme123")
+# ── document parsing ─────────────────────────────────────────
+from PyPDF2 import PdfReader
+from pdfminer.high_level import extract_text as pdfminer_text
+import fitz
+import docx
+import pandas as pd
+
+# ── embeddings / vector search ───────────────────────────────
+import numpy as np
+from sqlalchemy import create_engine, Column, Integer, String, LargeBinary
+from sqlalchemy.orm import declarative_base, sessionmaker
+from werkzeug.exceptions import HTTPException
+
+# ── environment / config ─────────────────────────────────────
+openai.api_key = os.getenv("OPENAI_API_KEY")
+if not openai.api_key:
+    print("❌ OPENAI_API_KEY not set. Add it to your .env file or environment.")
+    # Don't crash — error handler will catch this at runtime
 
 app            = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret")
+LOCK           = threading.Lock()
 
-LOCK = threading.Lock()
-
-# ---------- persistence paths -------------------------------------
+# ── paths & storage ───────────────────────────────────────────
 BASE_DIR     = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_DIR   = os.path.join(BASE_DIR, "faq_uploads")
 INDEX_FILE   = os.path.join(UPLOAD_DIR, "_index.json")
 PERSONA_FILE = os.path.join(BASE_DIR, "personas.json")
-
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# ---------- helpers: FAQ index ------------------------------------
-def load_index() -> list:
-    if not os.path.exists(INDEX_FILE):
-        return []
-    with open(INDEX_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+EMBED_MODEL  = "text-embedding-3-small"
 
-def save_index(idx: list) -> None:
-    with LOCK, open(INDEX_FILE, "w", encoding="utf-8") as f:
-        json.dump(idx, f, indent=2)
+# ── embedding DB ──────────────────────────────────────────────
+ENG     = create_engine(f"sqlite:///{os.path.join(BASE_DIR,'faq_chunks.db')}")
+Base    = declarative_base()
+Session = sessionmaker(bind=ENG)
 
-# ---------- text extraction ---------------------------------------
-def extract_text(path: str, ext: str) -> str:
+class Chunk(Base):
+    __tablename__ = "chunks"
+    id      = Column(Integer, primary_key=True)
+    file_id = Column(String, index=True)
+    text    = Column(String)
+    emb     = Column(LargeBinary)  # pickled np.array(float32)
+
+Base.metadata.create_all(ENG)
+
+# ── helpers for database and embedding ───────────────────────
+def handle_db(fn):
+    def wrapped(*a, **kw):
+        sess = Session()
+        try: return fn(sess, *a, **kw)
+        finally: sess.close()
+    return wrapped
+
+def embed(text):
+    vec = openai.embeddings.create(model=EMBED_MODEL,
+                                   input=text)["data"][0]["embedding"]
+    return np.array(vec, dtype="float32")
+
+@handle_db
+def add_chunk(sess, file_id, text):
+    sess.add(Chunk(file_id=file_id, text=text, emb=pickle.dumps(embed(text))))
+    sess.commit()
+
+@handle_db
+def query_chunks(sess, q_emb, top_k=5):
+    rows = sess.query(Chunk).all()
+    if not rows: return []
+    embs = np.vstack([pickle.loads(r.emb) for r in rows])
+    sims = (embs @ q_emb).flatten()
+    idxs = sims.argsort()[-top_k:][::-1]
+    return [(rows[i].text, float(sims[i])) for i in idxs]
+
+# ── doc extraction ────────────────────────────────────────────
+MAX_SLICE = 6_000
+
+def extract_text(path, ext):
     try:
         if ext == ".txt":
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 return f.read()
 
         if ext == ".pdf":
-            out = []
-            for page in PdfReader(path).pages:
-                out.append(page.extract_text() or "")
-            return "\n".join(out)
+            txt = "\n".join(p.extract_text() or "" for p in PdfReader(path).pages[:10])
+            if not txt.strip():
+                txt = pdfminer_text(path, maxpages=10)
+            if not txt.strip():
+                with fitz.open(path) as doc:
+                    txt = "\n".join(p.get_text() for p in doc[:10])
+            return txt
 
         if ext == ".docx":
             d = docx.Document(path)
-            return "\n".join(p.text for p in d.paragraphs)
+            return "\n".join(p.text for p in d.paragraphs[:300])
 
-        if ext == ".doc" and textract:
-            return textract.process(path).decode("utf-8", "ignore")
+        if ext in (".xls", ".xlsx"):
+            return pd.read_excel(path).to_csv(index=False)
 
-    except Exception as exc:
-        print("Text extraction failed:", exc)
+    except Exception as e:
+        print("Extraction failed:", e)
+    return ""
 
-    return ""  # fallback on failure
+def build_chunks(file_id, csv_text, rows_per_chunk=50):
+    lines = csv_text.splitlines()
+    if not lines: return
+    header, body = lines[0], lines[1:]
+    for i in range(0, len(body), rows_per_chunk):
+        chunk = header + "\n" + "\n".join(body[i:i+rows_per_chunk])
+        add_chunk(file_id, chunk)
 
-# ---------- add & delete docs -------------------------------------
-def add_doc(file_storage) -> None:
+# ── file storage ──────────────────────────────────────────────
+def load_index():
+    if not os.path.exists(INDEX_FILE): return []
+    with open(INDEX_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_index(idx):
+    with LOCK:
+        with open(INDEX_FILE, "w", encoding="utf-8") as f:
+            json.dump(idx, f, indent=2)
+
+def add_doc(file_storage):
     idx  = load_index()
     orig = secure_filename(file_storage.filename)
     ext  = os.path.splitext(orig)[1].lower()
     uid  = str(uuid.uuid4())
-
-    # save binary
-    bin_fname = f"{uid}{ext}"
-    bin_path  = os.path.join(UPLOAD_DIR, bin_fname)
+    bin_path = os.path.join(UPLOAD_DIR, f"{uid}{ext}")
     file_storage.save(bin_path)
 
-    # guarantee a .txt with extracted text
-    if ext == ".txt":
-        txt_fname, txt_path = bin_fname, bin_path
-    else:
-        txt_fname = f"{uid}.txt"
-        txt_path  = os.path.join(UPLOAD_DIR, txt_fname)
-        text = extract_text(bin_path, ext)
+    text = extract_text(bin_path, ext)
+    txt_path = bin_path if ext == ".txt" else os.path.join(UPLOAD_DIR, f"{uid}.txt")
+    if ext != ".txt":
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(text)
 
     idx.append({
-        "id": uid,
-        "name": orig,
-        "file": bin_fname,
-        "text_file": txt_fname,
+        "id": uid, "name": orig,
+        "file": os.path.basename(bin_path),
+        "text_file": os.path.basename(txt_path),
         "size": os.path.getsize(bin_path),
         "uploaded": datetime.utcnow().isoformat() + "Z"
     })
     save_index(idx)
 
-def delete_doc(doc_id: str) -> bool:
+    if ext in (".xls", ".xlsx"):
+        build_chunks(uid, text)
+
+def delete_doc(doc_id):
     idx = load_index()
     doc = next((d for d in idx if d["id"] == doc_id), None)
-    if not doc:
-        return False
-
-    # remove both binary and text versions if present
-    to_remove = {doc["file"]}
-    if "text_file" in doc:
-        to_remove.add(doc["text_file"])
-
-    for fname in to_remove:
-        try:
-            os.remove(os.path.join(UPLOAD_DIR, fname))
-        except FileNotFoundError:
-            pass
-
-    idx = [d for d in idx if d["id"] != doc_id]
-    save_index(idx)
+    if not doc: return False
+    for f in {doc["file"], doc.get("text_file", doc["file"])}:
+        try: os.remove(os.path.join(UPLOAD_DIR, f))
+        except: pass
+    save_index([d for d in idx if d["id"] != doc_id])
     return True
 
-# ---------- personas ----------------------------------------------
-def load_personas() -> dict:
+# ── personas ──────────────────────────────────────────────────
+def load_personas():
     if not os.path.exists(PERSONA_FILE):
         with open(PERSONA_FILE, "w", encoding="utf-8") as f:
-            json.dump({"Default": "You are a helpful business assistant."}, f, indent=2)
+            json.dump({"Default": "You are a helpful business assistant."}, f)
     with open(PERSONA_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def save_personas(data: dict) -> None:
-    with LOCK, open(PERSONA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+def save_personas(data):
+    with LOCK:
+        with open(PERSONA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
 
-PERSONAS = load_personas()
-
-# ---------- session helpers ---------------------------------------
-def sid()       -> str:  return session.setdefault("sid", str(uuid.uuid4()))
-def is_admin()  -> bool: return session.get("is_admin", False)
-
-# ---------- combined FAQ text -------------------------------------
-def combined_faq(limit_chars: int = 25000) -> str:
+def combined_faq(limit=20000):
     txt = ""
     for doc in load_index():
-        path = os.path.join(
-            UPLOAD_DIR,
-            doc.get("text_file", doc["file"])  # fallback for pre-upgrade rows
-        )
+        if doc["file"].endswith((".xls", ".xlsx")): continue
+        path = os.path.join(UPLOAD_DIR, doc.get("text_file", doc["file"]))
         try:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-        except FileNotFoundError:
-            content = ""
-
+        except: content = ""
         txt += f"\n--- {doc['name']} ---\n{content}"
-        if len(txt) >= limit_chars:
-            break
-    return txt[:limit_chars]
+        if len(txt) > limit: break
+    return txt[:limit]
 
-# ==================================================================
-# Flask routes
-# ==================================================================
+# ── session ───────────────────────────────────────────────────
+def sid(): return session.setdefault("sid", str(uuid.uuid4()))
+def is_admin(): return session.get("is_admin", False)
 
+PERSONAS = load_personas()
+CONV_HISTORY: Dict[str, List[Dict]] = {}
+
+# ══════════════════════════════════════════════════════════════
+# Routes
+# ══════════════════════════════════════════════════════════════
 @app.route("/")
 def index():
     return render_template("index.html")
 
-# ---------- admin login ----------
 @app.route("/admin/login", methods=["POST"])
 def admin_login():
     if request.get_json(force=True).get("password") == ADMIN_PASSWORD:
@@ -175,103 +214,93 @@ def admin_login():
         return "", 204
     return "unauthorized", 401
 
-# ---------- persona CRUD ----------
 @app.route("/admin/personas", methods=["GET", "POST"])
 def personas():
-    if not is_admin():
-        return "forbidden", 403
-
+    if not is_admin(): return "forbidden", 403
     if request.method == "GET":
         return jsonify(PERSONAS)
-
     data = request.get_json(force=True)
-    name = data.get("name", "").strip()
-    instr = data.get("instructions", "").strip()
-    if not name or not instr:
-        return "bad request", 400
-
-    PERSONAS[name] = instr
+    name, txt = data.get("name", "").strip(), data.get("instructions", "").strip()
+    if not name or not txt: return "bad request", 400
+    PERSONAS[name] = txt
     save_personas(PERSONAS)
     return "", 204
 
 @app.route("/admin/personas/<name>", methods=["DELETE"])
-def persona_delete(name):
-    if not is_admin():
-        return "forbidden", 403
-    if name == "Default":
-        return "cannot delete default", 400
+def delete_persona(name):
+    if not is_admin(): return "forbidden", 403
+    if name == "Default": return "can't delete default", 400
     PERSONAS.pop(name, None)
     save_personas(PERSONAS)
     return "", 204
 
-# ---------- FAQ upload & list ----------
 @app.route("/admin/upload", methods=["POST"])
 def upload():
-    if not is_admin():
-        return "forbidden", 403
-    files = request.files.getlist("files")
-    if not files:
-        return "no files", 400
-    for f in files:
+    if not is_admin(): return "forbidden", 403
+    for f in request.files.getlist("files"):
         add_doc(f)
     return "", 204
 
 @app.route("/admin/faqs", methods=["GET"])
-def list_faqs():
-    if not is_admin():
-        return "forbidden", 403
+def list_docs():
+    if not is_admin(): return "forbidden", 403
     return jsonify(load_index())
 
 @app.route("/admin/faqs/<doc_id>", methods=["DELETE"])
-def del_faq(doc_id):
-    if not is_admin():
-        return "forbidden", 403
-    if delete_doc(doc_id):
-        return "", 204
-    return "not found", 404
-
-# ---------- clear conversation (not FAQs) ----------
-CONV_HISTORY: dict[str, list] = {}
+def remove_doc(doc_id):
+    if not is_admin(): return "forbidden", 403
+    return ("", 204) if delete_doc(doc_id) else ("not found", 404)
 
 @app.route("/admin/clear", methods=["POST"])
-def clear_conv():
-    if not is_admin():
-        return "forbidden", 403
+def clear_chat():
+    if not is_admin(): return "forbidden", 403
     CONV_HISTORY.pop(sid(), None)
     return "", 204
 
-# ---------- chat endpoint ----------
 @app.route("/chat", methods=["POST"])
 def chat():
-    data = request.get_json(force=True)
-    question = data.get("message", "").strip()
-    model = data.get("model", "gpt-4o")
-    persona = PERSONAS.get(data.get("persona", "Default"), PERSONAS["Default"])
-    temperature = float(data.get("temperature", 0.2))
+    data        = request.get_json(force=True)
+    message     = data.get("message", "").strip()
+    model       = data.get("model", "gpt-4o")
+    persona_key = data.get("persona", "Default")
+    temp        = float(data.get("temperature", 0.2))
 
-    if not question:
+    if not message:
         return jsonify(error="empty"), 400
 
+    if not openai.api_key:
+        return jsonify(error="Missing OPENAI_API_KEY"), 500
+
+    persona = PERSONAS.get(persona_key, PERSONAS["Default"])
     history = CONV_HISTORY.setdefault(sid(), [])
-    history.append({"role": "user", "content": question})
-    history = history[-20:]  # trim context
+    history.append({"role": "user", "content": message})
+    history = history[-20:]
+
+    q_emb      = embed(message)
+    top_chunks = query_chunks(q_emb, top_k=5)
+    chunk_txt  = "\n".join(f"---\n{t}" for t, _ in top_chunks)
 
     sys_prompt = (
-        f"{persona}\n\nWhen relevant, answer using these FAQs:\n```\n"
-        f"{combined_faq()}\n```"
+        f"{persona}\n\nUse the following reference when helpful:\n"
+        f"```\n{chunk_txt}\n{combined_faq()}\n```"
     )
 
     resp = openai.chat.completions.create(
         model=model,
         messages=[{"role": "system", "content": sys_prompt}, *history],
-        temperature=temperature,
+        temperature=temp,
     )
-
     answer = resp.choices[0].message.content.strip()
     history.append({"role": "assistant", "content": answer})
     CONV_HISTORY[sid()] = history
     return jsonify(answer=answer)
 
-# ---------- run ----------------------------------------------------
+@app.errorhandler(Exception)
+def handle_error(e):
+    print("ERROR:", e)
+    if isinstance(e, HTTPException):
+        return jsonify(error=str(e)), e.code
+    return jsonify(error=str(e)), 500
+
 if __name__ == "__main__":
     app.run(debug=True)
