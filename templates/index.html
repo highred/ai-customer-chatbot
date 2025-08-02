@@ -7,16 +7,26 @@
  :root{--bg:#fff;--fg:#000;--panel:#f5f5f5;--accent:#008cff}
  .dark{--bg:#1e1e1e;--fg:#f1f1f1;--panel:#2b2b2b;--accent:#4499ff}
  body{background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;
-      max-width:800px;margin:40px auto;line-height:1.5;transition:.3s}
- h2{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
- #chat{background:var(--panel);border:1px solid #555;border-radius:12px;
-       height:340px;overflow:auto;padding:18px}
+      max-width:820px;margin:40px auto;line-height:1.5;transition:.3s}
+
+ /* tab strip ----------------------------------------------------- */
+ .tabs{display:flex;margin-bottom:14px;border-bottom:2px solid var(--accent)}
+ .tab{padding:8px 16px;border:none;background:transparent;
+      font-weight:bold;cursor:pointer;outline:none;color:var(--fg);opacity:.6}
+ .tab.active{opacity:1;border-bottom:4px solid var(--accent)}
+
+ /* chat window --------------------------------------------------- */
+ #chatBox{background:var(--panel);border:1px solid #555;border-radius:12px;
+          height:340px;overflow:auto;padding:18px}
+
  textarea{width:100%;min-height:60px;max-height:200px;resize:vertical;
           padding:10px;font-size:15px;border:1px solid #555;border-radius:12px;
           background:var(--panel);color:var(--fg)}
+
  button,select{padding:10px 16px;border:none;border-radius:12px;font-weight:bold;cursor:pointer}
  button{background:var(--accent);color:#fff}
  select{background:var(--panel);color:var(--fg);border:1px solid #555}
+
  #modeBtn{background:transparent;border:none;font-size:18px;color:var(--accent);cursor:pointer}
  #spinner{display:none;width:48px;height:14px;position:relative;margin-left:12px}
  #spinner div{position:absolute;width:10px;height:10px;border-radius:50%;
@@ -24,36 +34,42 @@
  #spinner div:nth-child(2){left:16px;animation-delay:.1s}
  #spinner div:nth-child(3){left:32px;animation-delay:.2s}
  @keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
- .hidden{display:none}
- #adminPanel{background:var(--panel);border:1px dashed var(--accent);
-             border-radius:12px;padding:14px;margin-top:24px}
- #adminPanel h3{margin-top:0;font-size:17px}
- #closeAdmin{background:transparent;border:none;font-size:18px;color:var(--accent);cursor:pointer;float:right}
- textarea#instBox{width:100%;min-height:90px;margin-top:8px}
+
  ul#faqList{list-style:none;padding:0;margin:0}
  ul#faqList li{display:flex;justify-content:space-between;align-items:center;
                background:rgba(0,0,0,.05);padding:6px 10px;margin-top:4px;border-radius:8px}
  ul#faqList button{background:#ff5252;padding:4px 8px;font-size:12px}
+
+ .hidden{display:none}
 </style>
 </head>
 <body>
-<h2><span>AI Customer Chatbot</span><button id="modeBtn">🌙</button></h2>
 
-<div id="chat"></div><br>
+<!-- header & dark-mode toggle -->
+<h2 style="display:flex;justify-content:space-between;align-items:center">
+  <span>AI Customer Chatbot</span>
+  <button id="modeBtn">🌙</button>
+</h2>
 
-<textarea id="msg" placeholder="Type a question…"></textarea><br>
-<div style="display:flex;align-items:center;gap:10px;margin-top:8px">
-  <button id="send">Send</button>
-  <span id="spinner"><div></div><div></div><div></div></span>
+<!-- tab bar -->
+<div class="tabs">
+  <button id="chatTab"  class="tab active">Chat</button>
+  <button id="adminTab" class="tab">Admin</button>
 </div>
 
-<button id="adminToggle" style="margin-top:20px;background:var(--panel);color:var(--accent);border:1px solid var(--accent)">
-  Admin Panel
-</button>
+<!-- =============== CHAT PANE =============== -->
+<div id="chatPane">
+  <div id="chatBox"></div><br>
 
-<div id="adminPanel" class="hidden">
-  <h3>Admin Panel <button id="closeAdmin">✖</button></h3>
+  <textarea id="msg" placeholder="Type a question…"></textarea><br>
+  <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+    <button id="send">Send</button>
+    <span id="spinner"><div></div><div></div><div></div></span>
+  </div>
+</div>
 
+<!-- =============== ADMIN PANE =============== -->
+<div id="adminPane" class="hidden">
   <label>Persona:
     <select id="personaSel"></select>
     <button id="newPersona" style="margin-left:6px">New</button>
