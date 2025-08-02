@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Chatbot Demo</title>
+  <style>
+    body{font-family:sans-serif;max-width:600px;margin:40px auto}
+    #chat{border:1px solid #ccc;height:300px;overflow:auto;padding:8px}
+    #msg{width:80%}
+  </style>
+</head>
+<body>
+<h2>AI Customer Chatbot</h2>
+<div id="chat"></div><br>
+<input id="msg" placeholder="Type a question…" />
+<button id="send">Send</button>
+
+<script src="{{ url_for('static', filename='chat.js') }}"></script>
+</body>
+</html>
