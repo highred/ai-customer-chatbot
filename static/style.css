@@ -1,33 +1,36 @@
+/* Base layout */
 body {
   font-family: system-ui, sans-serif;
-  margin: 20px;
+  margin: 20px auto;
+  max-width: 720px;
+  padding: 0 16px;
   background: #fff;
   color: #111;
   transition: background 0.3s, color 0.3s;
 }
 body.dark {
-  background: #111;
-  color: #eee;
+  background: #1b1b1b;
+  color: #f2f2f2;
 }
+
 h2 {
   margin-top: 0;
 }
 
 button {
-  padding: 6px 12px;
+  padding: 6px 14px;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   background: #007bff;
   color: white;
-  cursor: pointer;
   font-weight: bold;
+  cursor: pointer;
 }
 button:hover {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 button.danger {
-  background: #e74c3c;
-  color: white;
+  background: #dc3545;
 }
 
 textarea,
@@ -35,36 +38,46 @@ input[type="text"],
 select {
   width: 100%;
   padding: 8px;
-  margin: 6px 0 12px;
+  font-size: 15px;
   border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+textarea {
+  resize: vertical;
 }
 
-.scrollbox {
+label {
+  display: block;
+  margin-top: 14px;
+  font-weight: bold;
+}
+
+/* Chat */
+#chatBox {
   border: 1px solid #ccc;
-  padding: 10px;
-  height: 320px;
+  border-radius: 10px;
+  padding: 12px;
+  height: 300px;
   overflow-y: auto;
-  background: #fafafa;
-  border-radius: 8px;
+  background: #fdfdfd;
   margin-bottom: 8px;
 }
 #msg {
   height: 60px;
 }
-
-#spinner {
+.spinner {
   margin-left: 10px;
 }
 
+/* Tabs */
 .tabs {
   margin-bottom: 12px;
 }
 .tabs button {
   background: #eee;
   color: #333;
-  margin-right: 4px;
+  margin-right: 5px;
 }
 .tabs button.active {
   background: #007bff;
@@ -79,6 +92,7 @@ select {
   display: none;
 }
 
+/* Mode toggle */
 #modeBtn {
   float: right;
   font-size: 18px;
@@ -87,55 +101,15 @@ select {
   cursor: pointer;
 }
 
-label {
-  display: block;
-  margin: 10px 0 4px;
-}
-
-input[type="range"] {
-  vertical-align: middle;
-}
-
-ul.faq-list {
-  list-style: none;
-  padding: 0;
-}
-ul.faq-list li {
-  background: #f9f9f9;
-  margin: 6px 0;
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  position: relative;
-}
-ul.faq-list li .meta {
-  font-size: 0.85em;
-  color: #555;
-  margin-top: 4px;
-}
-ul.faq-list li button {
-  float: right;
-  margin-left: 10px;
-  background: #e74c3c;
-}
-
+/* Drag-and-drop */
 .drop-box {
   border: 2px dashed #aaa;
-  padding: 20px;
-  margin: 12px 0;
   border-radius: 10px;
+  padding: 20px;
   text-align: center;
-  background: #f7f7f7;
+  margin: 12px 0;
   cursor: pointer;
-  transition: 0.2s;
-}
-.drop-box:hover {
-  background: #eef;
-  border-color: #77f;
-}
-.drop-box.drag {
-  background: #e3e3ff;
-  border-color: #44f;
+  background: #f8f8f8;
 }
 .drop-box p {
   margin: 4px 0;
@@ -144,33 +118,64 @@ ul.faq-list li button {
   font-size: 0.85em;
   color: #666;
 }
+.drop-box:hover {
+  background: #eef;
+  border-color: #77f;
+}
+.drop-box.drag {
+  background: #e0e0ff;
+  border-color: #44f;
+}
 
-@media (prefers-color-scheme: dark) {
-  body:not(.light) {
-    background: #111;
-    color: #eee;
-  }
-  textarea,
-  input,
-  select {
-    background: #1e1e1e;
-    color: #fff;
-    border: 1px solid #333;
-  }
-  .scrollbox {
-    background: #1a1a1a;
-    border-color: #333;
-  }
-  .drop-box {
-    background: #1a1a1a;
-    border-color: #333;
-    color: #ccc;
-  }
-  ul.faq-list li {
-    background: #1a1a1a;
-    border-color: #333;
-  }
-  ul.faq-list li .meta {
-    color: #aaa;
-  }
+/* File list */
+ul.faq-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 12px;
+}
+ul.faq-list li {
+  background: #f4f4f4;
+  border: 1px solid #ccc;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  position: relative;
+}
+ul.faq-list li .meta {
+  font-size: 0.85em;
+  color: #444;
+  margin-top: 4px;
+}
+ul.faq-list li button {
+  float: right;
+  background: #dc3545;
+  color: white;
+  margin-left: 10px;
+}
+
+/* Range slider */
+input[type="range"] {
+  vertical-align: middle;
+}
+
+/* Dark mode support */
+body.dark {
+  background: #1b1b1b;
+  color: #f2f2f2;
+}
+body.dark textarea,
+body.dark input,
+body.dark select {
+  background: #2c2c2c;
+  color: #f0f0f0;
+  border-color: #444;
+}
+body.dark #chatBox,
+body.dark .drop-box,
+body.dark ul.faq-list li {
+  background: #2a2a2a;
+  border-color: #444;
+}
+body.dark .meta {
+  color: #aaa;
 }
