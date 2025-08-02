@@ -1,42 +1,42 @@
-import os, uuid
+import os, uuid, json, threading
 from flask import Flask, request, jsonify, render_template, session
 import openai
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme123")
+# --- config --------------------------------------------------------
+openai.api_key   = os.getenv("OPENAI_API_KEY")
+ADMIN_PASSWORD   = os.getenv("ADMIN_PASSWORD", "changeme123")
+PERSONA_FILE     = "personas.json"
+LOCK             = threading.Lock()
 
-app            = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret")
+app              = Flask(__name__)
+app.secret_key   = os.getenv("FLASK_SECRET_KEY", "dev-secret")
 
-CONV_HISTORY = {}   # {sid: [msgs]}
-FAQ_STORE    = {}   # {sid: faq_text}
+CONV_HISTORY = {}      # {sid: [msgs]}
+FAQ_STORE    = {}      # {sid: faq_text}
 
-DEFAULT_INSTRUCT = """\
-You are **"K.E.N.N" – Kenn Enhanced Neural Network**, the business-professional assistant \
-for an ISO/IEC 17025-accredited calibration laboratory near Chicago.
+# --- persona helpers ----------------------------------------------
+def load_personas():
+    if not os.path.exists(PERSONA_FILE):
+        with open(PERSONA_FILE, "w") as f:
+            json.dump({"Default": "You are a helpful business assistant."}, f, indent=2)
+    with open(PERSONA_FILE, "r") as f:
+        return json.load(f)
 
-**Core style guidelines**
-• Accuracy first – cite ISO/IEC 17025 clause numbers where helpful.  
-• Clear, concise answers – headline sentence, then short paragraphs or numbered bullets.  
-• Risk-based mindset – note uncertainty budgets, corrective actions, customer impact.  
-• Tone – warm, direct, seasoned quality-manager voice.  
-• Visuals – suggest charts / code / formulas only when they add clear value; avoid tables unless essential.  
-• Dates – default to U.S. Central Time.
+def save_personas(data):
+    with LOCK, open(PERSONA_FILE, "w") as f:
+        json.dump(data, f, indent=2)
 
-Finish responses with an actionable takeaway when appropriate.
-"""
+PERSONAS = load_personas()
 
-# ── helpers ────────────────────────────────────────────────────────
-def sid(): return session.setdefault("sid", str(uuid.uuid4()))
-def is_admin(): return session.get("is_admin", False)
-def get_instructions(payload):  # admin may pass custom instructions
-    custom = payload.get("instructions", "").strip()
-    return custom if custom else DEFAULT_INSTRUCT
+# --- convenience ---------------------------------------------------
+def sid():       return session.setdefault("sid", str(uuid.uuid4()))
+def is_admin():  return session.get("is_admin", False)
 
-# ── routes ─────────────────────────────────────────────────────────
+# --- routes --------------------------------------------------------
 @app.route("/")
 def index(): return render_template("index.html")
 
+# -------- admin auth ----------
 @app.route("/admin/login", methods=["POST"])
 def admin_login():
     if request.get_json(force=True).get("password") == ADMIN_PASSWORD:
@@ -44,37 +44,62 @@ def admin_login():
         return "", 204
     return "unauthorized", 401
 
+# -------- persona API ----------
+@app.route("/admin/personas", methods=["GET","POST"])
+def personas():
+    if not is_admin(): return "forbidden", 403
+    if request.method == "GET":
+        return jsonify(PERSONAS)
+    data = request.get_json(force=True)
+    name, instr = data.get("name","").strip(), data.get("instructions","").strip()
+    if not name or not instr: return "bad request", 400
+    PERSONAS[name] = instr
+    save_personas(PERSONAS)
+    return "", 204
+
+@app.route("/admin/personas/<name>", methods=["DELETE"])
+def delete_persona(name):
+    if not is_admin(): return "forbidden", 403
+    if name == "Default": return "cannot delete default", 400
+    PERSONAS.pop(name, None)
+    save_personas(PERSONAS)
+    return "", 204
+
+# -------- faq upload ----------
 @app.route("/upload", methods=["POST"])
 def upload():
     if not is_admin(): return "forbidden", 403
     FAQ_STORE[sid()] = request.files["file"].read().decode("utf-8","ignore")
     return f"FAQ uploaded ({len(FAQ_STORE[sid()])} chars)", 200
 
+# -------- clear session -------
 @app.route("/admin/clear", methods=["POST"])
-def clear():   # wipe convo + FAQ for this sid
+def clear():
     if not is_admin(): return "forbidden", 403
     CONV_HISTORY.pop(sid(), None); FAQ_STORE.pop(sid(), None)
     return "", 204
 
+# -------- chat ----------
 @app.route("/chat", methods=["POST"])
 def chat():
     data      = request.get_json(force=True)
     question  = data.get("message","").strip()
     model     = data.get("model","gpt-4o")
-    instruct  = get_instructions(data)
+    persona   = PERSONAS.get(data.get("persona","Default"), PERSONAS["Default"])
     if not question: return jsonify(error="empty"), 400
 
     history = CONV_HISTORY.setdefault(sid(), [])
     history.append({"role":"user","content":question})
     history = history[-20:]
 
-    sys_prompt = f"{instruct}\n\nWhen relevant, answer using this FAQ:\n```\n" \
+    sys_prompt = f"{persona}\n\nWhen relevant, answer using this FAQ:\n```\n" \
                  + FAQ_STORE.get(sid(),"")[:4000] + "\n```"
 
-    messages  = [{"role":"system","content":sys_prompt}, *history]
-    response  = openai.chat.completions.create(
-                   model=model, messages=messages, temperature=0.2)
-    answer    = response.choices[0].message.content.strip()
+    resp = openai.chat.completions.create(
+              model=model,
+              messages=[{"role":"system","content":sys_prompt}, *history],
+              temperature=0.2)
+    answer = resp.choices[0].message.content.strip()
 
     history.append({"role":"assistant","content":answer})
     CONV_HISTORY[sid()] = history
