@@ -1,36 +1,56 @@
-import os
-from flask import Flask, jsonify, request
+import os, uuid
+from flask import Flask, request, jsonify, render_template, session
 import openai
 
-# ── load secrets ───────────────────────────────────────────────────
-openai.api_key = os.getenv("OPENAI_API_KEY")  # reads from .env
-
+# ── keys & config ──────────────────────────────────────────────────
+openai.api_key = os.getenv("OPENAI_API_KEY")
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret")
 
-# ── health check route ─────────────────────────────────────────────
+# in-memory store: {session_id: [ {"role": "...", "content": "..."} ]}
+CONV_HISTORY = {}
+
+# ── root page ──────────────────────────────────────────────────────
 @app.route("/")
-def hello():
-    return jsonify({"msg": "Chatbot backend is alive"})
+def index():
+    return render_template("index.html")
 
-# ── new chat route ─────────────────────────────────────────────────
+# ── chat endpoint with memory ──────────────────────────────────────
 @app.route("/chat", methods=["POST"])
 def chat():
+    # ensure each browser gets a unique session_id cookie
+    if "sid" not in session:
+        session["sid"] = str(uuid.uuid4())
+    sid = session["sid"]
+
+    # pull question
     data = request.get_json(force=True)
     question = data.get("message", "").strip()
-
     if not question:
         return jsonify({"error": "empty message"}), 400
 
-    # guard if key not set yet
-    if not openai.api_key or openai.api_key.startswith("replace_with"):
-        return jsonify({"answer": "🛑 OpenAI key not set in .env"}), 200
+    # start / append history
+    history = CONV_HISTORY.setdefault(sid, [])
+    history.append({"role": "user", "content": question})
+    # keep only last 10 exchanges to control token usage
+    history = history[-20:]
+    CONV_HISTORY[sid] = history
 
-    resp = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": question}],
-        temperature=0.2,
-    )
-    answer = resp.choices[0].message.content.strip()
+    # safety guard
+    if not openai.api_key or openai.api_key.startswith("replace_with"):
+        answer = "🛑 OpenAI key not set in .env"
+    else:
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=history,
+            temperature=0.2,
+        )
+        answer = response.choices[0].message.content.strip()
+
+    # add assistant reply to history
+    history.append({"role": "assistant", "content": answer})
+    CONV_HISTORY[sid] = history[-20:]
+
     return jsonify({"answer": answer})
 
 # ── run locally ────────────────────────────────────────────────────
