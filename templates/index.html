@@ -4,20 +4,36 @@
   <meta charset="utf-8">
   <title>AI Customer Chatbot</title>
   <style>
-    body{font-family:sans-serif;max-width:700px;margin:40px auto}
-    #chat{border:1px solid #ccc;height:300px;overflow:auto;padding:8px}
+    :root{
+      --bg:#ffffff; --fg:#000000; --panel:#f5f5f5;
+    }
+    .dark{
+      --bg:#1e1e1e; --fg:#f1f1f1; --panel:#2b2b2b;
+    }
+    body{
+      background:var(--bg); color:var(--fg);
+      font-family:sans-serif; max-width:700px; margin:40px auto;
+      transition:background .3s,color .3s;
+    }
+    #chat{
+      border:1px solid #ccc; height:300px; overflow:auto;
+      padding:8px; background:var(--panel);
+    }
     #msg{width:80%}
+    #spinner{display:none}
+    button{cursor:pointer}
   </style>
 </head>
 <body>
-<h2>AI Customer Chatbot</h2>
+<h2>AI Customer Chatbot
+  <button id="modeBtn" style="float:right">🌙</button>
+</h2>
 
-<!-- Chat window -->
 <div id="chat"></div><br>
-<input id="msg" placeholder="Type a question…" />
+<input id="msg" placeholder="Type a question…" autocomplete="off"/>
 <button id="send">Send</button>
+<span id="spinner">⏳</span>
 
-<!-- FAQ upload -->
 <br><br>
 <form id="faqForm">
   <label>Upload FAQ (.txt):
