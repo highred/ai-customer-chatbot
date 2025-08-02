@@ -86,6 +86,7 @@ def chat():
     question  = data.get("message","").strip()
     model     = data.get("model","gpt-4o")
     persona   = PERSONAS.get(data.get("persona","Default"), PERSONAS["Default"])
+    temperature = float(data.get("temperature", 0.2))  # NEW
     if not question: return jsonify(error="empty"), 400
 
     history = CONV_HISTORY.setdefault(sid(), [])
@@ -98,7 +99,7 @@ def chat():
     resp = openai.chat.completions.create(
               model=model,
               messages=[{"role":"system","content":sys_prompt}, *history],
-              temperature=0.2)
+              temperature=temperature)   # was 0.2
     answer = resp.choices[0].message.content.strip()
 
     history.append({"role":"assistant","content":answer})

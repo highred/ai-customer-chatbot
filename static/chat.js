@@ -19,6 +19,14 @@ const faqForm    =document.getElementById("faqForm");
 const clearBtn   =document.getElementById("clearBtn");
 const uploadStatus=document.getElementById("uploadStatus");
 
+// NEW refs for creativity slider
+const tempSlider = document.getElementById("tempSlider");
+const tempVal    = document.getElementById("tempVal");
+if (tempSlider) {
+  tempVal.textContent = (+tempSlider.value).toFixed(2);
+  tempSlider.oninput  = () => tempVal.textContent = (+tempSlider.value).toFixed(2);
+}
+
 let isAdmin=false, panelVisible=false;
 
 // ---------- helpers ----------
@@ -44,7 +52,12 @@ async function send(){
   const q=textarea.value.trim(); if(!q)return;
   append("You",q); textarea.value=""; busy(true);
   const res=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},
-       body:JSON.stringify({message:q,model:"gpt-4o",persona:personaSel.value})});
+       body:JSON.stringify({
+         message:q,
+         model:"gpt-4o",
+         persona:personaSel.value,
+         temperature:+tempSlider.value   // NEW
+       })});
   const data=await res.json(); append("Bot",data.answer||data.error); busy(false);
 }
 sendBtn.onclick=send;
@@ -66,9 +79,19 @@ adminToggle.onclick=async()=>{
 closeAdmin.onclick=()=>{panelVisible=false;adminPanel.classList.add("hidden");adminToggle.textContent="Admin Panel"};
 
 // ---------- persona CRUD ----------
-newPersona.onclick=()=>{
-  const name=prompt("New persona name:"); if(!name)return;
-  personaSel.value=name; instBox.value="Describe this persona here…";
+newPersona.onclick = () => {
+  const name = prompt("New persona name:")?.trim();
+  if (!name) return;
+
+  let opt = [...personaSel.options].find(o => o.value === name);
+  if (!opt) {
+    opt = document.createElement("option");
+    opt.value = opt.textContent = name;
+    personaSel.appendChild(opt);
+  }
+  personaSel.value = name;
+  instBox.value = "Describe this persona here…";
+  instBox.focus();
 };
 savePersona.onclick=async()=>{
   const name=personaSel.value.trim(); const txt=instBox.value.trim();
