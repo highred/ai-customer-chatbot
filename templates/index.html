@@ -20,19 +20,32 @@
       padding:8px; background:var(--panel);
     }
     #msg{width:80%}
-    #spinner{display:none}
     button{cursor:pointer}
+
+    /* --- real spinner --- */
+    #spinner{
+      display:none;
+      width:18px; height:18px;
+      border:3px solid var(--fg);
+      border-top:3px solid transparent;
+      border-radius:50%;
+      vertical-align:middle;
+      animation: spin .8s linear infinite;
+      margin-left:6px;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
-<h2>AI Customer Chatbot
+<h2>
+  AI Customer Chatbot
   <button id="modeBtn" style="float:right">🌙</button>
 </h2>
 
 <div id="chat"></div><br>
 <input id="msg" placeholder="Type a question…" autocomplete="off"/>
 <button id="send">Send</button>
-<span id="spinner">⏳</span>
+<span id="spinner"></span>
 
 <br><br>
 <form id="faqForm">
