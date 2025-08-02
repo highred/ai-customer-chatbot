@@ -1,0 +1,176 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 20px;
+  background: #fff;
+  color: #111;
+  transition: background 0.3s, color 0.3s;
+}
+body.dark {
+  background: #111;
+  color: #eee;
+}
+h2 {
+  margin-top: 0;
+}
+
+button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #007bff;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+}
+button:hover {
+  opacity: 0.85;
+}
+button.danger {
+  background: #e74c3c;
+  color: white;
+}
+
+textarea,
+input[type="text"],
+select {
+  width: 100%;
+  padding: 8px;
+  margin: 6px 0 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.scrollbox {
+  border: 1px solid #ccc;
+  padding: 10px;
+  height: 320px;
+  overflow-y: auto;
+  background: #fafafa;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+#msg {
+  height: 60px;
+}
+
+#spinner {
+  margin-left: 10px;
+}
+
+.tabs {
+  margin-bottom: 12px;
+}
+.tabs button {
+  background: #eee;
+  color: #333;
+  margin-right: 4px;
+}
+.tabs button.active {
+  background: #007bff;
+  color: white;
+}
+
+#chatPane,
+#adminPane {
+  margin-top: 12px;
+}
+.hidden {
+  display: none;
+}
+
+#modeBtn {
+  float: right;
+  font-size: 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+label {
+  display: block;
+  margin: 10px 0 4px;
+}
+
+input[type="range"] {
+  vertical-align: middle;
+}
+
+ul.faq-list {
+  list-style: none;
+  padding: 0;
+}
+ul.faq-list li {
+  background: #f9f9f9;
+  margin: 6px 0;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  position: relative;
+}
+ul.faq-list li .meta {
+  font-size: 0.85em;
+  color: #555;
+  margin-top: 4px;
+}
+ul.faq-list li button {
+  float: right;
+  margin-left: 10px;
+  background: #e74c3c;
+}
+
+.drop-box {
+  border: 2px dashed #aaa;
+  padding: 20px;
+  margin: 12px 0;
+  border-radius: 10px;
+  text-align: center;
+  background: #f7f7f7;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.drop-box:hover {
+  background: #eef;
+  border-color: #77f;
+}
+.drop-box.drag {
+  background: #e3e3ff;
+  border-color: #44f;
+}
+.drop-box p {
+  margin: 4px 0;
+}
+.drop-box .sub {
+  font-size: 0.85em;
+  color: #666;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not(.light) {
+    background: #111;
+    color: #eee;
+  }
+  textarea,
+  input,
+  select {
+    background: #1e1e1e;
+    color: #fff;
+    border: 1px solid #333;
+  }
+  .scrollbox {
+    background: #1a1a1a;
+    border-color: #333;
+  }
+  .drop-box {
+    background: #1a1a1a;
+    border-color: #333;
+    color: #ccc;
+  }
+  ul.faq-list li {
+    background: #1a1a1a;
+    border-color: #333;
+  }
+  ul.faq-list li .meta {
+    color: #aaa;
+  }
+}

@@ -1,134 +1,74 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <title>AI Customer Chatbot</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
-    :root {
-      --bg:#ffffff; --fg:#000000; --panel:#f5f5f5; --accent:#008cff;
-      --card:#fcfcfc;
-    }
-    .dark {
-      --bg:#1e1e1e; --fg:#f1f1f1; --panel:#2b2b2b; --accent:#4499ff; --card:#242424;
-    }
-    html,body { margin:0; height:100% }
-    body {
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-      background:var(--bg); color:var(--fg); line-height:1.5;
-      max-width:860px; margin:32px auto; transition:background .3s,color .3s;
-    }
-    h2 { display:flex; justify-content:space-between; align-items:center; margin:0 0 18px }
-    #modeBtn { background:transparent; border:none; font-size:20px; color:var(--accent); cursor:pointer }
-
-    .tabs { display:flex; margin-bottom:16px; border-bottom:2px solid var(--accent) }
-    .tab {
-      padding:8px 18px; background:transparent; border:none; font-weight:bold;
-      color:var(--fg); opacity:.6; cursor:pointer
-    }
-    .tab.active { opacity:1; border-bottom:4px solid var(--accent) }
-
-    .hidden { display:none }
-
-    #chatBox {
-      background:var(--panel); border:1px solid #555; border-radius:12px;
-      height:340px; overflow-y:auto; padding:18px
-    }
-
-    textarea {
-      width:100%; min-height:60px; max-height:200px; resize:vertical;
-      padding:10px; font-size:15px; border:1px solid #555; border-radius:12px;
-      background:var(--panel); color:var(--fg)
-    }
-
-    button,select,input[type=file] {
-      border:none; border-radius:12px; font-weight:bold; font-size:14px; cursor:pointer
-    }
-    button { background:var(--accent); color:#fff; padding:10px 18px }
-    select,input[type=file] { background:var(--panel); color:var(--fg); padding:8px }
-
-    button.danger { background:#ff5252; color:#fff }
-
-    #spinner { display:none; width:48px; height:14px; position:relative; margin-left:12px }
-    #spinner div {
-      position:absolute; width:10px; height:10px; border-radius:50%; background:var(--accent);
-      animation:bounce .8s infinite
-    }
-    #spinner div:nth-child(2){ left:16px; animation-delay:.1s }
-    #spinner div:nth-child(3){ left:32px; animation-delay:.2s }
-    @keyframes bounce { 0%,80%,100%{ transform:scale(0) } 40%{ transform:scale(1) } }
-
-    #adminPane label { display:block; margin:10px 0 4px }
-    #adminPane textarea { min-height:120px }
-    hr { border:none; border-top:1px dashed #666; margin:24px 0 }
-  </style>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:,">
 </head>
 <body>
+  <button id="modeBtn">🌙</button>
 
-<h2>
-  <span>AI Customer Chatbot</span>
-  <button id="modeBtn" title="Toggle light/dark">🌙</button>
-</h2>
-
-<div class="tabs">
-  <button id="chatTab"  class="tab active">Chat</button>
-  <button id="adminTab" class="tab">Admin</button>
-</div>
-
-<!-- CHAT PANE -->
-<div id="chatPane">
-  <div id="chatBox"></div><br>
-  <textarea id="msg" placeholder="Type a question…"></textarea>
-  <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
-    <button id="send">Send</button>
-    <span id="spinner"><div></div><div></div><div></div></span>
+  <h2>AI Customer Chatbot</h2>
+  <div class="tabs">
+    <button id="chatTab" class="active">Chat</button>
+    <button id="adminTab">Admin</button>
   </div>
-</div>
 
-<!-- ADMIN PANE -->
-<div id="adminPane" class="hidden">
-  <label>Persona:
-    <select id="personaSel"></select>
-    <button id="newPersona" style="margin-left:6px">New</button>
-    <button id="deletePersona" class="danger" style="margin-left:4px">Delete</button>
-  </label>
+  <div id="chatPane">
+    <div id="chatBox" class="scrollbox"></div>
+    <textarea id="msg" placeholder="Type a question…"></textarea>
+    <button id="send">Send</button>
+    <span id="spinner" class="spinner" style="display:none"></span>
+  </div>
 
-  <label>Instructions:</label>
-  <textarea id="instBox" placeholder="Enter persona text…"></textarea>
-  <button id="savePersona" style="margin-top:6px">Save Persona</button>
-
-  <label style="margin-top:20px">Creativity (temperature):
-    <input id="tempSlider" type="range" min="0" max="1" step="0.05" value="0.20"
-           style="width:150px;vertical-align:middle">
-    <span id="tempVal">0.20</span>
-  </label>
-
-  <hr>
-
-  <form id="faqForm" style="margin-bottom:14px">
-    <label>Upload docs (.txt, .pdf, .docx, .xls, .xlsx):
-      <input type="file" id="faqFiles" accept=".txt,.pdf,.docx,.xls,.xlsx" multiple>
+  <div id="adminPane" class="hidden">
+    <label>Persona:
+      <select id="personaSel"></select>
+      <button id="newPersona">New</button>
+      <button id="deletePersona" class="danger">Delete</button>
     </label>
 
-    <label style="margin-left:20px">
-      Chunk Size:
-      <select id="chunkSize" style="margin-left:6px">
-        <option>10</option>
-        <option>25</option>
-        <option selected>50</option>
-        <option>75</option>
-        <option>100</option>
-      </select>
+    <label>Instructions:
+      <textarea id="instBox" rows="3"></textarea>
+    </label>
+    <button id="savePersona">Save Persona</button>
+
+    <label>Creativity (temperature):
+      <input type="range" id="tempSlider" min="0" max="1" step="0.01" value="0.2">
+      <span id="tempVal">0.20</span>
     </label>
 
-    <button type="submit" style="margin-left:8px">Upload</button>
-  </form>
+    <hr>
 
-  <ul id="faqList" style="padding-left:20px"></ul>
+    <form id="faqForm">
+      <label for="faqFiles">
+        Upload docs (.txt, .pdf, .docx, .xls, .xlsx):
+      </label>
+      <input type="file" id="faqFiles" accept=".txt,.pdf,.docx,.xls,.xlsx" multiple hidden>
 
-  <button id="clearBtn" class="danger" style="margin-top:14px">Clear Conversation Only</button>
-</div>
+      <div id="dropBox" class="drop-box">
+        <p>📁 Drag & Drop files here or click to browse</p>
+        <p class="sub">Supported: .txt, .pdf, .docx, .xlsx</p>
+      </div>
 
-<script src="{{ url_for('static', filename='chat.js') }}"></script>
+      <label>Chunk Size:
+        <select id="chunkSize">
+          <option>25</option>
+          <option selected>50</option>
+          <option>75</option>
+          <option>100</option>
+        </select>
+      </label>
+
+      <button type="submit" id="uploadBtn">Upload</button>
+    </form>
+
+    <ul id="faqList" class="faq-list"></ul>
+
+    <button id="clearBtn" class="danger">Clear Conversation Only</button>
+  </div>
+
+  <script src="/static/chat.js"></script>
 </body>
 </html>

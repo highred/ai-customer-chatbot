@@ -19,9 +19,11 @@ const deletePersona = document.getElementById("deletePersona");
 const faqForm     = document.getElementById("faqForm");
 const faqFiles    = document.getElementById("faqFiles");
 const faqList     = document.getElementById("faqList");
+const dropBox     = document.getElementById("dropBox");
+const uploadBtn   = document.getElementById("uploadBtn");
 const clearBtn    = document.getElementById("clearBtn");
-const chunkSizeSel= document.getElementById("chunkSize");
 
+const chunkSizeSel= document.getElementById("chunkSize");
 const tempSlider  = document.getElementById("tempSlider");
 const tempVal     = document.getElementById("tempVal");
 
@@ -126,11 +128,26 @@ deletePersona.onclick = async () => {
 };
 loadPersonas();
 
-// ── Chunk size control ----------------------------------------
+// ── Drag & Drop Upload ----------------------------------------
+dropBox.addEventListener("click", () => faqFiles.click());
+
+dropBox.addEventListener("dragover", e => {
+  e.preventDefault();
+  dropBox.classList.add("drag");
+});
+dropBox.addEventListener("dragleave", () => dropBox.classList.remove("drag"));
+dropBox.addEventListener("drop", e => {
+  e.preventDefault();
+  dropBox.classList.remove("drag");
+  faqFiles.files = e.dataTransfer.files;
+  faqForm.dispatchEvent(new Event("submit"));
+});
+
+// ── Chunk size memory -----------------------------------------
 chunkSizeSel.value = localStorage.getItem("chunkSize") || "50";
 chunkSizeSel.onchange = () => localStorage.setItem("chunkSize", chunkSizeSel.value);
 
-// ── FAQ upload & summary display ------------------------------
+// ── Upload ----------------------------------------------------
 faqForm.onsubmit = async (e) => {
   e.preventDefault();
   const fd = new FormData();
@@ -142,45 +159,28 @@ faqForm.onsubmit = async (e) => {
   });
   const uploaded = await res.json();
   faqFiles.value = "";
-
-  listFaqs();
-  displayUploadSummary(uploaded);
+  listFaqs(uploaded);
 };
 
-function displayUploadSummary(docs) {
-  const box = document.createElement("div");
-  box.style.background = "#eef";
-  box.style.border = "1px solid #99f";
-  box.style.padding = "12px";
-  box.style.margin = "14px 0";
-  box.style.borderRadius = "8px";
-
-  let html = `<b>Upload Summary</b><ul style="margin-top:6px">`;
-  docs.forEach(d => {
-    html += `<li><b>${d.name}</b>`;
-    if (d.chunks) {
-      html += ` – Chunks: ${d.chunks}, Skipped: ${d.skipped}, Tokens: ${d.token_est}, Cost: $${d.cost_est.toFixed(5)}`;
-    } else {
-      html += ` – No chunking`;
-    }
-    html += `</li>`;
-  });
-  html += `</ul>`;
-  box.innerHTML = html;
-
-  faqForm.insertAdjacentElement("afterend", box);
-}
-
 // ── FAQ list --------------------------------------------------
-async function listFaqs() {
+async function listFaqs(uploaded = []) {
   const docs = await j("/admin/faqs");
   faqList.innerHTML = "";
+
   docs.forEach(d => {
     const li = document.createElement("li");
-    li.textContent = d.name;
+    li.innerHTML = `<b>${d.name}</b>`;
+
+    if (d.chunks != null) {
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `Chunks: ${d.chunks}, Skipped: ${d.skipped}, Tokens: ${d.token_est}, Cost: $${d.cost_est.toFixed(5)}`;
+      li.appendChild(meta);
+    }
+
     const x = document.createElement("button");
-    x.textContent = "✕"; x.className = "danger";
-    x.style.marginLeft = "6px";
+    x.textContent = "✕";
+    x.className = "danger";
     x.onclick = async () => {
       await fetch(`/admin/faqs/${d.id}`, { method: "DELETE" });
       listFaqs();
