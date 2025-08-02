@@ -2,57 +2,51 @@ import os, uuid
 from flask import Flask, request, jsonify, render_template, session
 import openai
 
-# ── keys & config ──────────────────────────────────────────────────
 openai.api_key = os.getenv("OPENAI_API_KEY")
-app = Flask(__name__)
+app            = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret")
 
-# in-memory store: {session_id: [ {"role": "...", "content": "..."} ]}
-CONV_HISTORY = {}
+CONV_HISTORY = {}   # {sid: [msgs]}
+FAQ_STORE    = {}   # {sid: faq_text}
 
-# ── root page ──────────────────────────────────────────────────────
+# ── root ───────────────────────────────────────────────────────────
 @app.route("/")
-def index():
-    return render_template("index.html")
+def index(): return render_template("index.html")
 
-# ── chat endpoint with memory ──────────────────────────────────────
+# ── upload faq ─────────────────────────────────────────────────────
+@app.route("/upload", methods=["POST"])
+def upload():
+    sid = session.setdefault("sid", str(uuid.uuid4()))
+    file = request.files.get("file")
+    if not file: return "No file",400
+    FAQ_STORE[sid] = file.read().decode("utf-8","ignore")
+    return f"FAQ uploaded ({len(FAQ_STORE[sid])} chars)",200
+
+# ── chat ───────────────────────────────────────────────────────────
 @app.route("/chat", methods=["POST"])
 def chat():
-    # ensure each browser gets a unique session_id cookie
-    if "sid" not in session:
-        session["sid"] = str(uuid.uuid4())
-    sid = session["sid"]
-
-    # pull question
+    sid = session.setdefault("sid", str(uuid.uuid4()))
     data = request.get_json(force=True)
-    question = data.get("message", "").strip()
-    if not question:
-        return jsonify({"error": "empty message"}), 400
+    question = data.get("message","").strip()
+    model    = data.get("model","gpt-4o")
+    if not question: return jsonify(error="empty"),400
 
-    # start / append history
     history = CONV_HISTORY.setdefault(sid, [])
-    history.append({"role": "user", "content": question})
-    # keep only last 10 exchanges to control token usage
+    history.append({"role":"user","content":question})
     history = history[-20:]
+
+    sys_prompt = (
+        "You are a helpful support bot. "
+        "When relevant, answer using this FAQ:\n```\n"
+        + FAQ_STORE.get(sid,"")[:4000] + "\n```"
+    )
+    messages  = [{"role":"system","content":sys_prompt}, *history]
+    resp      = openai.chat.completions.create(
+                    model=model, messages=messages, temperature=0.2)
+    answer    = resp.choices[0].message.content.strip()
+
+    history.append({"role":"assistant","content":answer})
     CONV_HISTORY[sid] = history
+    return jsonify(answer=answer)
 
-    # safety guard
-    if not openai.api_key or openai.api_key.startswith("replace_with"):
-        answer = "🛑 OpenAI key not set in .env"
-    else:
-        response = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=history,
-            temperature=0.2,
-        )
-        answer = response.choices[0].message.content.strip()
-
-    # add assistant reply to history
-    history.append({"role": "assistant", "content": answer})
-    CONV_HISTORY[sid] = history[-20:]
-
-    return jsonify({"answer": answer})
-
-# ── run locally ────────────────────────────────────────────────────
-if __name__ == "__main__":
-    app.run(debug=True)
+if __name__=="__main__": app.run(debug=True)
