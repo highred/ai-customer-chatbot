@@ -2,31 +2,31 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Lets do this Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Chat</title>
   <link rel="stylesheet" href="/static/style.css">
-  <link rel="icon" href="data:,">
 </head>
 <body>
   <div id="branding">
     <div class="brand-left">
-      <img id="logo" src="/static/logo.png" alt="Company Logo">
-      <input id="headerTitle" value="Lets do this Chat">
+      <img src="/static/logo.png" alt="logo" id="logo">
+      <input type="text" id="headerTitle" value="Lets do this Chat">
     </div>
     <button id="modeBtn">🌙</button>
   </div>
 
   <div class="tabs">
-    <button id="chatTab" class="active">Chat</button>
+    <button id="chatTab">Chat</button>
     <button id="personalityTab">Personality</button>
     <button id="documentTab">Documents</button>
   </div>
 
   <div id="chatPane" class="pane">
-    <div id="chatBox" class="scrollbox"></div>
+    <div id="chatBox"></div>
     <div class="chat-input">
       <textarea id="msg" placeholder="Type a question…"></textarea>
       <button id="send">Send</button>
-      <span id="spinner" class="spinner" style="display:none"></span>
+      <span id="spinner" class="spinner" style="display:none">⏳</span>
     </div>
   </div>
 
@@ -46,53 +46,47 @@
   <div id="documentPane" class="hidden pane">
     <div class="doc-controls">
       <label>Filter by type:
-        <select id="docFilter">
+        <select id="filterDocs">
           <option value="all">All</option>
-          <option value="pdf">PDF</option>
-          <option value="docx">DOCX</option>
-          <option value="txt">TXT</option>
-          <option value="xlsx">XLSX</option>
+          <option value=".txt">.txt</option>
+          <option value=".pdf">.pdf</option>
+          <option value=".docx">.docx</option>
+          <option value=".xls">.xls</option>
+          <option value=".xlsx">.xlsx</option>
         </select>
       </label>
-      <button id="sortByName">Sort A-Z</button>
+      <button type="button" id="sortDocs" value="name">Sort A-Z</button>
     </div>
 
     <form id="faqForm">
-      <label for="faqFiles">Upload docs (.txt, .pdf, .docx, .xls, .xlsx):</label>
-      <input type="file" id="faqFiles" accept=".txt,.pdf,.docx,.xls,.xlsx" multiple hidden>
-
-      <div id="dropBox" class="drop-box">
+      <label>Upload docs (.txt, .pdf, .docx, .xls, .xlsx):</label>
+      <div class="drop-box" id="dropBox">
         <p>📁 Drag & Drop files here or click to browse</p>
         <p class="sub">Supported: .txt, .pdf, .docx, .xlsx</p>
+        <input type="file" id="faqFiles" name="files" multiple hidden>
       </div>
-
       <label>Chunk Size:
-        <select id="chunkSize">
-          <option>25</option>
-          <option selected>50</option>
-          <option>75</option>
-          <option>100</option>
-        </select>
+        <input type="number" id="chunkSize" value="50">
       </label>
-
-      <button type="submit" id="uploadBtn">Upload</button>
+      <button type="submit">Upload</button>
     </form>
 
     <div class="doc-sorting">
       <label>Sort by:
         <select id="sortDocs">
           <option value="name">Name</option>
-          <option value="date">Upload Date</option>
+          <option value="date">Date</option>
           <option value="type">Type</option>
         </select>
       </label>
       <label>Filter by:
         <select id="filterDocs">
           <option value="all">All</option>
-          <option value="txt">.txt</option>
-          <option value="pdf">.pdf</option>
-          <option value="docx">.docx</option>
-          <option value="xlsx">.xlsx</option>
+          <option value=".txt">.txt</option>
+          <option value=".pdf">.pdf</option>
+          <option value=".docx">.docx</option>
+          <option value=".xls">.xls</option>
+          <option value=".xlsx">.xlsx</option>
         </select>
       </label>
     </div>

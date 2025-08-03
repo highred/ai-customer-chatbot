@@ -21,7 +21,7 @@ from werkzeug.exceptions import HTTPException
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
+app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret")
 LOCK = threading.Lock()
 

@@ -1,4 +1,4 @@
-// ── tab switching ───────────────────────────────────────────────
+// ── Tabs ───────────────────────────────────────
 const chatTab = document.getElementById("chatTab");
 const personalityTab = document.getElementById("personalityTab");
 const documentTab = document.getElementById("documentTab");
@@ -10,16 +10,12 @@ const documentPane = document.getElementById("documentPane");
 function showTab(tab) {
   [chatTab, personalityTab, documentTab].forEach(btn => btn.classList.remove("active"));
   [chatPane, personalityPane, documentPane].forEach(p => p.classList.add("hidden"));
-
   if (tab === "chat") {
-    chatTab.classList.add("active");
-    chatPane.classList.remove("hidden");
+    chatTab.classList.add("active"); chatPane.classList.remove("hidden");
   } else if (tab === "personality") {
-    personalityTab.classList.add("active");
-    personalityPane.classList.remove("hidden");
-  } else if (tab === "documents") {
-    documentTab.classList.add("active");
-    documentPane.classList.remove("hidden");
+    personalityTab.classList.add("active"); personalityPane.classList.remove("hidden");
+  } else {
+    documentTab.classList.add("active"); documentPane.classList.remove("hidden");
   }
 }
 chatTab.onclick = () => showTab("chat");
@@ -27,21 +23,21 @@ personalityTab.onclick = () => showTab("personality");
 documentTab.onclick = () => showTab("documents");
 showTab("chat");
 
-// ── dark mode ───────────────────────────────────────────────────
+// ── Dark mode ──────────────────────────────────
 const modeBtn = document.getElementById("modeBtn");
 modeBtn.onclick = () => {
   document.body.classList.toggle("dark");
   modeBtn.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
 };
 
-// ── title input ─────────────────────────────────────────────────
+// ── Header title ───────────────────────────────
 const headerInput = document.getElementById("headerTitle");
 headerInput.value = localStorage.getItem("chatbotTitle") || "Lets do this Chat";
 headerInput.addEventListener("input", () => {
   localStorage.setItem("chatbotTitle", headerInput.value);
 });
 
-// ── chat logic ─────────────────────────────────────────────────
+// ── Chat logic ─────────────────────────────────
 const chatBox = document.getElementById("chatBox");
 const textarea = document.getElementById("msg");
 const sendBtn = document.getElementById("send");
@@ -52,6 +48,8 @@ const tempVal = document.getElementById("tempVal");
 tempVal.textContent = (+tempSlider.value).toFixed(2);
 tempSlider.oninput = () => tempVal.textContent = (+tempSlider.value).toFixed(2);
 
+let activePersona = "Default";
+
 const append = (who, text) => {
   chatBox.insertAdjacentHTML("beforeend", `<p><b>${who}:</b> ${text}</p>`);
   chatBox.scrollTop = chatBox.scrollHeight;
@@ -60,16 +58,22 @@ const busy = (b) => {
   spinner.style.display = b ? "inline-block" : "none";
   sendBtn.disabled = textarea.disabled = b;
 };
-const j = async (url, opts={}) => (await fetch(url, opts)).json();
 
-let activePersona = "Default";
+const j = async (url, opts = {}) => (await fetch(url, opts)).json();
+
+sendBtn.onclick = send;
+textarea.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+});
 
 async function send() {
   const q = textarea.value.trim();
   if (!q) return;
   append("You", q);
   textarea.value = "";
-
   busy(true);
   const res = await fetch("/chat", {
     method: "POST",
@@ -84,28 +88,36 @@ async function send() {
   const data = await res.json();
   append("Bot", data.answer || data.error);
   busy(false);
-  textarea.focus();
 }
-sendBtn.onclick = () => send();
-textarea.addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault(); send();
-  }
-});
 
-// ── persona management ─────────────────────────────────────────
+// ── Persona logic ──────────────────────────────
 const personaList = document.getElementById("personaList");
 const newPersonaBtn = document.getElementById("newPersona");
+
+const personaDropdown = document.createElement("select");
+personaDropdown.id = "personaSelector";
+personaDropdown.onchange = () => {
+  activePersona = personaDropdown.value;
+};
+const personaHeader = document.createElement("div");
+personaHeader.innerHTML = `<label>Active Persona: </label>`;
+personaHeader.appendChild(personaDropdown);
+personaList.before(personaHeader);
 
 async function loadPersonas() {
   const data = await j("/admin/personas");
   personaList.innerHTML = "";
+  personaDropdown.innerHTML = "";
 
   Object.entries(data).forEach(([name, instructions]) => {
     addPersonaBlock(name, instructions);
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    personaDropdown.appendChild(opt);
   });
 
-  activePersona = "Default";
+  personaDropdown.value = activePersona = "Default";
 }
 
 function addPersonaBlock(name, instructions = "") {
@@ -148,15 +160,106 @@ function addPersonaBlock(name, instructions = "") {
   personaList.appendChild(wrapper);
 }
 
-newPersonaBtn.onclick = async () => {
+newPersonaBtn.onclick = () => {
   const name = prompt("New persona name:");
   if (!name) return;
-
   addPersonaBlock(name, "");
-  // Do NOT POST until user fills it out and clicks save
+  const opt = document.createElement("option");
+  opt.value = name;
+  opt.textContent = name;
+  personaDropdown.appendChild(opt);
+  personaDropdown.value = activePersona = name;
 };
 
-loadPersonas();
+// ── Document Upload ────────────────────────────
+const dropBox = document.getElementById("dropBox");
+const fileInput = document.getElementById("faqFiles");
+const faqForm = document.getElementById("faqForm");
+const chunkSizeInput = document.getElementById("chunkSize");
+const faqList = document.getElementById("faqList");
 
-// ── document and upload logic omitted for brevity (same as before) ──
-// Keep your existing FAQ drag/drop + upload code here if unchanged
+dropBox.onclick = () => fileInput.click();
+dropBox.ondragover = (e) => {
+  e.preventDefault();
+  dropBox.classList.add("drag");
+};
+dropBox.ondragleave = () => dropBox.classList.remove("drag");
+dropBox.ondrop = (e) => {
+  e.preventDefault();
+  dropBox.classList.remove("drag");
+  fileInput.files = e.dataTransfer.files;
+};
+
+faqForm.onsubmit = async (e) => {
+  e.preventDefault();
+  const files = fileInput.files;
+  if (!files.length) return;
+
+  const form = new FormData();
+  for (let f of files) form.append("files", f);
+
+  const res = await fetch("/admin/upload", {
+    method: "POST",
+    headers: { "X-Chunk-Size": chunkSizeInput.value },
+    body: form
+  });
+
+  const data = await res.json();
+  if (data.length > 0) loadFaqs();
+  fileInput.value = "";
+};
+
+async function loadFaqs() {
+  const files = await j("/admin/faqs");
+  faqList.innerHTML = "";
+
+  const sortVal = document.getElementById("sortDocs").value;
+  const filterVal = document.getElementById("filterDocs").value;
+
+  files.sort((a, b) => {
+    if (sortVal === "name") return a.name.localeCompare(b.name);
+    if (sortVal === "date") return new Date(b.uploaded) - new Date(a.uploaded);
+    if (sortVal === "type") return a.name.split('.').pop().localeCompare(b.name.split('.').pop());
+  });
+
+  const filtered = filterVal === "all"
+    ? files
+    : files.filter(f => f.name.toLowerCase().endsWith(filterVal));
+
+  for (const f of filtered) {
+    const li = document.createElement("li");
+
+    const top = document.createElement("div");
+    top.className = "file-row";
+    top.innerHTML = `<b>${f.name}</b>`;
+
+    const del = document.createElement("button");
+    del.textContent = "✕";
+    del.className = "danger";
+    del.onclick = async () => {
+      await fetch(`/admin/faqs/${f.id}`, { method: "DELETE" });
+      loadFaqs();
+    };
+    top.appendChild(del);
+    li.appendChild(top);
+
+    if (f.chunks !== undefined) {
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `Chunks: ${f.chunks}, Skipped: ${f.skipped}, Tokens: ${f.token_est}, Cost: $${f.cost_est}`;
+      li.appendChild(meta);
+    }
+
+    faqList.appendChild(li);
+  }
+}
+
+document.getElementById("sortDocs").onchange = loadFaqs;
+document.getElementById("filterDocs").onchange = loadFaqs;
+document.getElementById("clearBtn").onclick = async () => {
+  await fetch("/admin/clear", { method: "POST" });
+  alert("Conversation history cleared.");
+};
+
+loadFaqs();
+loadPersonas();
