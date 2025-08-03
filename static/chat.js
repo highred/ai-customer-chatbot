@@ -6,6 +6,29 @@ document.addEventListener("DOMContentLoaded", () => {
   const tempSlider = document.getElementById("tempSlider");
   const personaSelect = document.getElementById("personaSelector");
 
+  const tabs = {
+    chatTab: "chatPane",
+    personalityTab: "personalityPane",
+    documentTab: "documentPane"
+  };
+
+  Object.keys(tabs).forEach(tabId => {
+    const tabBtn = document.getElementById(tabId);
+    const paneId = tabs[tabId];
+    tabBtn?.addEventListener("click", () => {
+      // Remove active from all tabs
+      Object.keys(tabs).forEach(id => {
+        document.getElementById(id)?.classList.remove("active");
+        document.getElementById(tabs[id])?.classList.add("hidden");
+      });
+      // Activate selected tab
+      tabBtn.classList.add("active");
+      document.getElementById(paneId)?.classList.remove("hidden");
+
+      if (tabId === "chatTab") setTimeout(() => msgInput.focus(), 50);
+    });
+  });
+
   const appendMessage = (sender, text) => {
     const div = document.createElement("div");
     div.innerHTML = `<b>${sender}:</b> ${text}`;
@@ -56,12 +79,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Restore focus when switching back to Chat tab
-  document.getElementById("chatTab")?.addEventListener("click", () => {
-    setTimeout(() => msgInput.focus(), 100);
-  });
-
-  // Sync temperature value display (if element exists)
   const tempVal = document.getElementById("tempVal");
   if (tempSlider && tempVal) {
     tempSlider.addEventListener("input", () => {
