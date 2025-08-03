@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AI Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Customer Chatbot</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
   <div id="branding">
     <div class="brand-left">
-      <img src="/static/logo.png" alt="logo" id="logo" />
-      <input type="text" id="headerTitle" value="Lets do this Chat" />
+      <img src="/static/logo.png" alt="Logo" id="logo" />
+      <input type="text" id="headerTitle" value="AI CUSTOMER CHATBOT" />
     </div>
     <button id="modeBtn">🌙</button>
   </div>
@@ -22,28 +22,27 @@
   </div>
 
   <div id="chatPane" class="pane">
-    <div id="chatBox"></div>
+    <div id="chatBox" class="scrollable"></div>
     <div class="chat-input">
-      <textarea id="msg" placeholder="Type a question…" autofocus></textarea>
+      <textarea id="msg" placeholder="Type a message…" autofocus></textarea>
       <button id="send">Send</button>
-      <span id="spinner" class="dots" style="display:none">...</span>
+      <span id="spinner" class="animated-dots" style="display: none"></span>
     </div>
   </div>
 
-  <div id="personalityPane" class="hidden pane">
-    <form id="personaForm">
-      <div id="personaList" class="persona-list"></div>
-      <div class="persona-controls">
-        <button type="button" id="newPersona">New Persona</button>
-        <label>Creativity (temperature):
-          <input type="range" id="tempSlider" min="0" max="1" step="0.01" value="0.2" />
-          <span id="tempVal">0.20</span>
-        </label>
-      </div>
-    </form>
+  <div id="personalityPane" class="pane hidden">
+    <select id="personaSelector" style="display: none"></select>
+    <div id="personaList" class="persona-list"></div>
+    <div class="persona-controls">
+      <button type="button" id="newPersona">New Persona</button>
+      <label>Creativity (temperature):
+        <input type="range" id="tempSlider" min="0" max="1" step="0.01" value="0.2" />
+        <span id="tempVal">0.20</span>
+      </label>
+    </div>
   </div>
 
-  <div id="documentPane" class="hidden pane">
+  <div id="documentPane" class="pane hidden">
     <div class="doc-controls">
       <label>Filter by type:
         <select id="filterDocs">
@@ -55,7 +54,7 @@
           <option value=".xlsx">.xlsx</option>
         </select>
       </label>
-      <button type="button" id="sortDocs" value="name">Sort A-Z</button>
+      <button type="button" id="sortDocs">Sort A–Z</button>
     </div>
 
     <form id="faqForm">
