@@ -21,7 +21,7 @@ from werkzeug.exceptions import HTTPException
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret")
 LOCK = threading.Lock()
 
@@ -158,3 +158,145 @@ def add_doc(file_storage, rows_per_chunk=50):
     idx.append(meta)
     save_index(idx)
     return meta
+
+def delete_doc(doc_id):
+    idx = load_index()
+    doc = next((d for d in idx if d["id"] == doc_id), None)
+    if not doc: return False
+    for f in {doc["file"], doc.get("text_file", doc["file"])}:
+        try: os.remove(os.path.join(UPLOAD_DIR, f))
+        except: pass
+    save_index([d for d in idx if d["id"] != doc_id])
+    return True
+
+def load_personas():
+    if not os.path.exists(PERSONA_FILE):
+        with open(PERSONA_FILE, "w", encoding="utf-8") as f:
+            json.dump({"Default": "You are a helpful business assistant."}, f)
+    with open(PERSONA_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_personas(data):
+    with LOCK:
+        with open(PERSONA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+def combined_faq(limit=20000):
+    txt = ""
+    for doc in load_index():
+        path = os.path.join(UPLOAD_DIR, doc.get("text_file", doc["file"]))
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        except: content = ""
+        txt += f"\n--- {doc['name']} ---\n{content}"
+        if len(txt) > limit: break
+    return txt[:limit]
+
+def sid(): return session.setdefault("sid", str(uuid.uuid4()))
+def is_admin(): return session.get("is_admin", False)
+
+PERSONAS = load_personas()
+CONV_HISTORY: Dict[str, List[Dict]] = {}
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+@app.route("/admin/login", methods=["POST"])
+def admin_login():
+    if request.get_json(force=True).get("password") == os.getenv("ADMIN_PASSWORD", "changeme123"):
+        session["is_admin"] = True
+        return "", 204
+    return "unauthorized", 401
+
+@app.route("/admin/personas", methods=["GET", "POST"])
+def personas():
+    if not is_admin(): return "forbidden", 403
+    if request.method == "GET":
+        return jsonify(PERSONAS)
+    data = request.get_json(force=True)
+    name, txt = data.get("name", "").strip(), data.get("instructions", "").strip()
+    if not name or not txt: return "bad request", 400
+    PERSONAS[name] = txt
+    save_personas(PERSONAS)
+    return "", 204
+
+@app.route("/admin/personas/<name>", methods=["DELETE"])
+def delete_persona(name):
+    if not is_admin(): return "forbidden", 403
+    if name == "Default": return "can't delete default", 400
+    PERSONAS.pop(name, None)
+    save_personas(PERSONAS)
+    return "", 204
+
+@app.route("/admin/upload", methods=["POST"])
+def admin_upload():
+    if not is_admin(): return "forbidden", 403
+    chunk_size = int(request.headers.get("X-Chunk-Size", "50"))
+    stats = []
+    for f in request.files.getlist("files"):
+        result = add_doc(f, rows_per_chunk=chunk_size)
+        stats.append(result)
+    return jsonify(stats)
+
+@app.route("/admin/faqs", methods=["GET"])
+def list_docs():
+    if not is_admin(): return "forbidden", 403
+    return jsonify(load_index())
+
+@app.route("/admin/faqs/<doc_id>", methods=["DELETE"])
+def remove_doc(doc_id):
+    if not is_admin(): return "forbidden", 403
+    return ("", 204) if delete_doc(doc_id) else ("not found", 404)
+
+@app.route("/admin/clear", methods=["POST"])
+def clear_chat():
+    if not is_admin(): return "forbidden", 403
+    CONV_HISTORY.pop(sid(), None)
+    return "", 204
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json(force=True)
+    message     = data.get("message", "").strip()
+    model       = data.get("model", "gpt-4o")
+    persona_key = data.get("persona", "Default")
+    temp        = float(data.get("temperature", 0.2))
+
+    if not message: return jsonify(error="empty"), 400
+    if not openai.api_key: return jsonify(error="Missing OPENAI_API_KEY"), 500
+
+    persona = PERSONAS.get(persona_key, PERSONAS["Default"])
+    history = CONV_HISTORY.setdefault(sid(), [])
+    history.append({ "role": "user", "content": message })
+    history = history[-20:]
+
+    q_emb      = embed(message)
+    top_chunks = query_chunks(q_emb, top_k=5)
+    chunk_txt  = "\n".join(f"---\n{t}" for t, _ in top_chunks)
+
+    sys_prompt = (
+        f"{persona}\n\nUse the following reference when helpful:\n"
+        f"```\n{chunk_txt}\n{combined_faq()}\n```"
+    )
+
+    resp = openai.chat.completions.create(
+        model=model,
+        messages=[{ "role": "system", "content": sys_prompt }, *history],
+        temperature=temp,
+    )
+    answer = resp.choices[0].message.content.strip()
+    history.append({ "role": "assistant", "content": answer })
+    CONV_HISTORY[sid()] = history
+    return jsonify(answer=answer)
+
+@app.errorhandler(Exception)
+def handle_error(e):
+    print("ERROR:", e)
+    if isinstance(e, HTTPException):
+        return jsonify(error=str(e)), e.code
+    return jsonify(error=str(e)), 500
+
+if __name__ == "__main__":
+    app.run(debug=True)
