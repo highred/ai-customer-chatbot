@@ -7,22 +7,30 @@
   <link rel="icon" href="data:,">
 </head>
 <body>
-  <button id="modeBtn">🌙</button>
+  <div id="branding">
+    <div class="brand-left">
+      <img id="logo" src="/static/logo.png" alt="Company Logo">
+      <input id="headerTitle" value="AI Customer Chatbot" />
+    </div>
+    <button id="modeBtn">🌙</button>
+  </div>
 
-  <h2>AI Customer Chatbot</h2>
   <div class="tabs">
     <button id="chatTab" class="active">Chat</button>
-    <button id="adminTab">Admin</button>
+    <button id="personalityTab">Personality</button>
+    <button id="documentTab">Documents</button>
   </div>
 
-  <div id="chatPane">
+  <div id="chatPane" class="pane">
     <div id="chatBox" class="scrollbox"></div>
-    <textarea id="msg" placeholder="Type a question…"></textarea>
-    <button id="send">Send</button>
-    <span id="spinner" class="spinner" style="display:none"></span>
+    <div class="chat-input">
+      <textarea id="msg" placeholder="Type a question…"></textarea>
+      <button id="send">Send</button>
+      <span id="spinner" class="spinner" style="display:none"></span>
+    </div>
   </div>
 
-  <div id="adminPane" class="hidden">
+  <div id="personalityPane" class="hidden pane">
     <label>Persona:
       <select id="personaSel"></select>
       <button id="newPersona">New</button>
@@ -38,13 +46,11 @@
       <input type="range" id="tempSlider" min="0" max="1" step="0.01" value="0.2">
       <span id="tempVal">0.20</span>
     </label>
+  </div>
 
-    <hr>
-
+  <div id="documentPane" class="hidden pane">
     <form id="faqForm">
-      <label for="faqFiles">
-        Upload docs (.txt, .pdf, .docx, .xls, .xlsx):
-      </label>
+      <label for="faqFiles">Upload docs (.txt, .pdf, .docx, .xls, .xlsx):</label>
       <input type="file" id="faqFiles" accept=".txt,.pdf,.docx,.xls,.xlsx" multiple hidden>
 
       <div id="dropBox" class="drop-box">

@@ -1,60 +1,58 @@
-// ── element refs ─────────────────────────────────────────────
-const chatTab     = document.getElementById("chatTab");
-const adminTab    = document.getElementById("adminTab");
-const chatPane    = document.getElementById("chatPane");
-const adminPane   = document.getElementById("adminPane");
+// ── tab switching ────────────────────────────────────────────
+const chatTab       = document.getElementById("chatTab");
+const personalityTab= document.getElementById("personalityTab");
+const documentTab   = document.getElementById("documentTab");
 
-const chatBox     = document.getElementById("chatBox");
-const textarea    = document.getElementById("msg");
-const sendBtn     = document.getElementById("send");
-const spinner     = document.getElementById("spinner");
-const modeBtn     = document.getElementById("modeBtn");
+const chatPane      = document.getElementById("chatPane");
+const personalityPane = document.getElementById("personalityPane");
+const documentPane  = document.getElementById("documentPane");
 
-const personaSel  = document.getElementById("personaSel");
-const instBox     = document.getElementById("instBox");
-const newPersona  = document.getElementById("newPersona");
-const savePersona = document.getElementById("savePersona");
-const deletePersona = document.getElementById("deletePersona");
+function showTab(tab) {
+  [chatTab, personalityTab, documentTab].forEach(btn => btn.classList.remove("active"));
+  [chatPane, personalityPane, documentPane].forEach(p => p.classList.add("hidden"));
 
-const faqForm     = document.getElementById("faqForm");
-const faqFiles    = document.getElementById("faqFiles");
-const faqList     = document.getElementById("faqList");
-const dropBox     = document.getElementById("dropBox");
-const uploadBtn   = document.getElementById("uploadBtn");
-const clearBtn    = document.getElementById("clearBtn");
-
-const chunkSizeSel= document.getElementById("chunkSize");
-const tempSlider  = document.getElementById("tempSlider");
-const tempVal     = document.getElementById("tempVal");
+  if (tab === "chat") {
+    chatTab.classList.add("active");
+    chatPane.classList.remove("hidden");
+  } else if (tab === "personality") {
+    personalityTab.classList.add("active");
+    personalityPane.classList.remove("hidden");
+  } else if (tab === "documents") {
+    documentTab.classList.add("active");
+    documentPane.classList.remove("hidden");
+  }
+}
+chatTab.onclick = () => showTab("chat");
+personalityTab.onclick = () => showTab("personality");
+documentTab.onclick = () => showTab("documents");
+showTab("chat");
 
 // ── dark mode ────────────────────────────────────────────────
+const modeBtn = document.getElementById("modeBtn");
 modeBtn.onclick = () => {
   document.body.classList.toggle("dark");
   modeBtn.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
 };
 
-// ── tab switching ────────────────────────────────────────────
-function showChat() {
-  chatTab.classList.add("active");
-  adminTab.classList.remove("active");
-  chatPane.classList.remove("hidden");
-  adminPane.classList.add("hidden");
-}
-function showAdmin() {
-  adminTab.classList.add("active");
-  chatTab.classList.remove("active");
-  chatPane.classList.add("hidden");
-  adminPane.classList.remove("hidden");
-}
-chatTab.onclick = showChat;
-adminTab.onclick = showAdmin;
-showChat();
+// ── editable title persistence ───────────────────────────────
+const headerInput = document.getElementById("headerTitle");
+headerInput.value = localStorage.getItem("chatbotTitle") || "AI Customer Chatbot";
+headerInput.addEventListener("input", () => {
+  localStorage.setItem("chatbotTitle", headerInput.value);
+});
 
-// ── temperature slider ───────────────────────────────────────
+// ── chat functionality ───────────────────────────────────────
+const chatBox   = document.getElementById("chatBox");
+const textarea  = document.getElementById("msg");
+const sendBtn   = document.getElementById("send");
+const spinner   = document.getElementById("spinner");
+const personaSel= document.getElementById("personaSel");
+const tempSlider= document.getElementById("tempSlider");
+const tempVal   = document.getElementById("tempVal");
+
 tempVal.textContent = (+tempSlider.value).toFixed(2);
 tempSlider.oninput = () => tempVal.textContent = (+tempSlider.value).toFixed(2);
 
-// ── helpers ──────────────────────────────────────────────────
 const append = (who, text) => {
   chatBox.insertAdjacentHTML("beforeend", `<p><b>${who}:</b> ${text}</p>`);
   chatBox.scrollTop = chatBox.scrollHeight;
@@ -65,7 +63,6 @@ const busy = (b) => {
 };
 const j = async (url, opts={}) => (await fetch(url, opts)).json();
 
-// ── Chat send -------------------------------------------------
 async function send() {
   const q = textarea.value.trim();
   if (!q) return;
@@ -93,7 +90,12 @@ textarea.addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
 });
 
-// ── Personas --------------------------------------------------
+// ── persona management ───────────────────────────────────────
+const instBox = document.getElementById("instBox");
+const newPersona = document.getElementById("newPersona");
+const savePersona = document.getElementById("savePersona");
+const deletePersona = document.getElementById("deletePersona");
+
 async function loadPersonas() {
   const data = await j("/admin/personas");
   personaSel.innerHTML = "";
@@ -128,9 +130,16 @@ deletePersona.onclick = async () => {
 };
 loadPersonas();
 
-// ── Drag & Drop Upload ----------------------------------------
-dropBox.addEventListener("click", () => faqFiles.click());
+// ── drag & drop for documents ────────────────────────────────
+const faqForm   = document.getElementById("faqForm");
+const faqFiles  = document.getElementById("faqFiles");
+const dropBox   = document.getElementById("dropBox");
+const uploadBtn = document.getElementById("uploadBtn");
+const faqList   = document.getElementById("faqList");
+const clearBtn  = document.getElementById("clearBtn");
+const chunkSizeSel = document.getElementById("chunkSize");
 
+dropBox.addEventListener("click", () => faqFiles.click());
 dropBox.addEventListener("dragover", e => {
   e.preventDefault();
   dropBox.classList.add("drag");
@@ -143,11 +152,11 @@ dropBox.addEventListener("drop", e => {
   faqForm.dispatchEvent(new Event("submit"));
 });
 
-// ── Chunk size memory -----------------------------------------
+// ── Chunk size memory ────────────────────────────────────────
 chunkSizeSel.value = localStorage.getItem("chunkSize") || "50";
 chunkSizeSel.onchange = () => localStorage.setItem("chunkSize", chunkSizeSel.value);
 
-// ── Upload ----------------------------------------------------
+// ── Upload & List Docs ───────────────────────────────────────
 faqForm.onsubmit = async (e) => {
   e.preventDefault();
   const fd = new FormData();
@@ -162,7 +171,6 @@ faqForm.onsubmit = async (e) => {
   listFaqs(uploaded);
 };
 
-// ── FAQ list --------------------------------------------------
 async function listFaqs(uploaded = []) {
   const docs = await j("/admin/faqs");
   faqList.innerHTML = "";
@@ -191,7 +199,7 @@ async function listFaqs(uploaded = []) {
 }
 listFaqs();
 
-// ── Clear conversation -----------------------------------------
+// ── Clear chat ───────────────────────────────────────────────
 clearBtn.onclick = async () => {
   await fetch("/admin/clear", { method: "POST" });
   chatBox.innerHTML = "";
