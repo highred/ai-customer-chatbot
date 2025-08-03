@@ -3,64 +3,46 @@ document.addEventListener("DOMContentLoaded", () => {
   const chatBox = document.getElementById("chatBox");
   const sendBtn = document.getElementById("send");
   const spinner = document.getElementById("spinner");
+
   const chatTab = document.getElementById("chatTab");
   const personalityTab = document.getElementById("personalityTab");
   const documentTab = document.getElementById("documentTab");
+
   const chatPane = document.getElementById("chatPane");
   const personalityPane = document.getElementById("personalityPane");
   const documentPane = document.getElementById("documentPane");
-  const modeBtn = document.getElementById("modeBtn");
-  const tempSlider = document.getElementById("tempSlider");
-  const tempVal = document.getElementById("tempVal");
 
-  let currentModel = "gpt-4o";
   let currentPersona = "Default";
 
-  tempSlider.addEventListener("input", () => {
-    tempVal.textContent = parseFloat(tempSlider.value).toFixed(2);
-  });
-
-  modeBtn.addEventListener("click", () => {
-    document.body.classList.toggle("dark");
-  });
-
-  chatTab.addEventListener("click", () => {
-    chatTab.classList.add("active");
-    personalityTab.classList.remove("active");
-    documentTab.classList.remove("active");
-    chatPane.classList.remove("hidden");
-    personalityPane.classList.add("hidden");
-    documentPane.classList.add("hidden");
-  });
-
-  personalityTab.addEventListener("click", () => {
-    chatTab.classList.remove("active");
-    personalityTab.classList.add("active");
-    documentTab.classList.remove("active");
-    chatPane.classList.add("hidden");
-    personalityPane.classList.remove("hidden");
-    documentPane.classList.add("hidden");
-    loadPersonas();
-  });
-
-  documentTab.addEventListener("click", () => {
-    chatTab.classList.remove("active");
-    personalityTab.classList.remove("active");
-    documentTab.classList.add("active");
+  // ───────────── TAB HANDLING ─────────────
+  function switchTab(tab) {
     chatPane.classList.add("hidden");
     personalityPane.classList.add("hidden");
-    documentPane.classList.remove("hidden");
-    loadFaqs();
-  });
+    documentPane.classList.add("hidden");
+    chatTab.classList.remove("active");
+    personalityTab.classList.remove("active");
+    documentTab.classList.remove("active");
 
-  sendBtn.addEventListener("click", sendMessage);
-  msgBox.addEventListener("keypress", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+    if (tab === "chat") {
+      chatPane.classList.remove("hidden");
+      chatTab.classList.add("active");
+      msgBox.focus();
+    } else if (tab === "personality") {
+      personalityPane.classList.remove("hidden");
+      personalityTab.classList.add("active");
+      loadPersonas();
+    } else if (tab === "documents") {
+      documentPane.classList.remove("hidden");
+      documentTab.classList.add("active");
+      loadFaqs();
     }
-  });
+  }
 
+  chatTab.onclick = () => switchTab("chat");
+  personalityTab.onclick = () => switchTab("personality");
+  documentTab.onclick = () => switchTab("documents");
+
+  // ───────────── CHAT ─────────────
   function appendMsg(role, text) {
     const div = document.createElement("div");
     div.className = role;
@@ -82,99 +64,130 @@ document.addEventListener("DOMContentLoaded", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: text,
-        model: currentModel,
-        persona: currentPersona,
-        temperature: tempSlider.value,
-      }),
+        model: "gpt-4o",
+        temperature: parseFloat(document.getElementById("tempSlider").value),
+        persona: currentPersona
+      })
     })
-      .then((res) => res.json())
-      .then((data) => {
+      .then(res => res.json())
+      .then(data => {
         appendMsg("bot", data.answer || "[error]");
         spinner.style.display = "none";
       })
-      .catch((err) => {
-        appendMsg("bot", "[error]");
+      .catch(err => {
+        appendMsg("bot", `[error] ${err.message}`);
         spinner.style.display = "none";
-        console.error(err);
       });
   }
 
-  // ===================
-  // ADMIN FUNCTIONALITY
-  // ===================
+  sendBtn.onclick = sendMessage;
+  msgBox.onkeypress = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
 
+  // ───────────── PERSONAS ─────────────
   const personaList = document.getElementById("personaList");
   const newPersonaBtn = document.getElementById("newPersona");
 
   function loadPersonas() {
     fetch("/admin/personas")
-      .then((res) => res.json())
-      .then((data) => {
+      .then(res => res.json())
+      .then(data => {
         personaList.innerHTML = "";
         for (const name in data) {
           const div = document.createElement("div");
           div.className = "persona-block";
-          const activeTag = name === currentPersona ? " (Active)" : "";
           div.innerHTML = `
-            <label>${name}${activeTag}</label>
+            <label><strong>${name}</strong>${name === currentPersona ? " (Active)" : ""}</label>
             <textarea>${data[name]}</textarea>
-            <button class="save">💾</button>
-            ${
-              name !== "Default"
-                ? '<button class="delete">❌</button>'
-                : "<span></span>"
-            }
+            <div class="controls">
+              <button class="save">💾</button>
+              ${name !== "Default" ? `<button class="delete">❌</button>` : ""}
+            </div>
           `;
-          const [saveBtn, deleteBtn] = div.querySelectorAll("button");
-          saveBtn.onclick = () =>
-            savePersona(name, div.querySelector("textarea").value);
-          if (deleteBtn)
-            deleteBtn.onclick = () => deletePersona(name);
+
+          div.querySelector(".save").onclick = () => {
+            const text = div.querySelector("textarea").value;
+            fetch("/admin/personas", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name, instructions: text })
+            }).then(() => loadPersonas());
+          };
+
+          if (name !== "Default") {
+            div.querySelector(".delete").onclick = () => {
+              fetch(`/admin/personas/${name}`, { method: "DELETE" })
+                .then(() => {
+                  if (currentPersona === name) currentPersona = "Default";
+                  loadPersonas();
+                });
+            };
+          }
+
           div.onclick = () => {
             currentPersona = name;
-            loadPersonas(); // refresh to show active
+            loadPersonas();
           };
+
           personaList.appendChild(div);
         }
       });
   }
 
-  function savePersona(name, instructions) {
-    fetch("/admin/personas", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, instructions }),
-    }).then(() => loadPersonas());
-  }
-
-  function deletePersona(name) {
-    fetch(`/admin/personas/${name}`, {
-      method: "DELETE",
-    }).then(() => {
-      if (name === currentPersona) currentPersona = "Default";
-      loadPersonas();
-    });
-  }
-
-  newPersonaBtn.addEventListener("click", () => {
+  newPersonaBtn.onclick = () => {
     const name = prompt("New persona name?");
-    if (!name) return;
-    savePersona(name, "");
-  });
+    if (name) {
+      fetch("/admin/personas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, instructions: "" })
+      }).then(() => {
+        currentPersona = name;
+        loadPersonas();
+      });
+    }
+  };
 
-  // ============
-  // DOC HANDLER
-  // ============
+  // ───────────── DOCUMENTS ─────────────
+  const faqList = document.getElementById("faqList");
   const faqForm = document.getElementById("faqForm");
   const faqFiles = document.getElementById("faqFiles");
-  const dropBox = document.getElementById("dropBox");
   const chunkSize = document.getElementById("chunkSize");
-  const faqList = document.getElementById("faqList");
-  const clearBtn = document.getElementById("clearBtn");
+  const dropBox = document.getElementById("dropBox");
   const sortDocsBtn = document.getElementById("sortDocs");
   const filterDocs = document.getElementById("filterDocs");
 
-  faqForm.addEventListener("submit", (e) => {
+  function loadFaqs() {
+    fetch("/admin/faqs")
+      .then(res => res.json())
+      .then(data => {
+        faqList.innerHTML = "";
+        data.forEach(doc => {
+          const li = document.createElement("li");
+          li.setAttribute("data-name", doc.name);
+          const chunkStats = doc.chunks !== undefined
+            ? `<div class="chunk-info">Chunks: ${doc.chunks}, Skipped: ${doc.skipped}, Tokens: ${doc.token_est}, Cost: $${doc.cost_est}</div>`
+            : "";
+          li.innerHTML = `
+            <strong>${doc.name}</strong>
+            ${chunkStats}
+            <button class="delete">❌</button>
+          `;
+          li.querySelector(".delete").onclick = () => {
+            fetch(`/admin/faqs/${doc.id}`, { method: "DELETE" })
+              .then(() => loadFaqs());
+          };
+          faqList.appendChild(li);
+        });
+        filterDocs.dispatchEvent(new Event("change"));
+      });
+  }
+
+  faqForm.onsubmit = (e) => {
     e.preventDefault();
     const files = faqFiles.files;
     if (!files.length) return;
@@ -183,76 +196,48 @@ document.addEventListener("DOMContentLoaded", () => {
     fetch("/admin/upload", {
       method: "POST",
       headers: { "X-Chunk-Size": chunkSize.value },
-      body: formData,
+      body: formData
     })
-      .then((res) => res.json())
+      .then(res => res.json())
       .then(() => loadFaqs());
-  });
+  };
 
-  dropBox.addEventListener("click", () => faqFiles.click());
-  dropBox.addEventListener("dragover", (e) => {
+  dropBox.onclick = () => faqFiles.click();
+  dropBox.ondragover = (e) => {
     e.preventDefault();
-    dropBox.classList.add("drag-over");
-  });
-  dropBox.addEventListener("dragleave", () => {
-    dropBox.classList.remove("drag-over");
-  });
-  dropBox.addEventListener("drop", (e) => {
+    dropBox.classList.add("drag");
+  };
+  dropBox.ondragleave = () => {
+    dropBox.classList.remove("drag");
+  };
+  dropBox.ondrop = (e) => {
     e.preventDefault();
-    dropBox.classList.remove("drag-over");
+    dropBox.classList.remove("drag");
     faqFiles.files = e.dataTransfer.files;
-  });
+  };
 
-  clearBtn.addEventListener("click", () => {
-    fetch("/admin/clear", { method: "POST" }).then(() => {
-      chatBox.innerHTML = "";
-    });
-  });
-
-  sortDocsBtn.addEventListener("click", () => {
+  sortDocsBtn.onclick = () => {
     const items = Array.from(faqList.children);
     const sorted = items.sort((a, b) =>
-      a.textContent.localeCompare(b.textContent)
+      a.getAttribute("data-name").localeCompare(b.getAttribute("data-name"))
     );
     faqList.innerHTML = "";
     for (const item of sorted) faqList.appendChild(item);
-  });
+  };
 
-  filterDocs.addEventListener("change", () => {
-    const ext = filterDocs.value;
+  filterDocs.onchange = () => {
+    const type = filterDocs.value;
     for (const li of faqList.children) {
       const name = li.getAttribute("data-name") || "";
-      li.style.display = ext === "all" || name.endsWith(ext) ? "" : "none";
+      li.style.display = type === "all" || name.endsWith(type) ? "" : "none";
     }
-  });
+  };
 
-  function loadFaqs() {
-    fetch("/admin/faqs")
-      .then((res) => res.json())
-      .then((data) => {
-        faqList.innerHTML = "";
-        data.forEach((doc) => {
-          const li = document.createElement("li");
-          li.setAttribute("data-name", doc.name);
-          const chunkInfo =
-            doc.chunks !== undefined
-              ? `<div class="chunk-info">Chunks: ${doc.chunks}, Skipped: ${doc.skipped}, Tokens: ${doc.token_est}, Cost: $${doc.cost_est}</div>`
-              : "";
-          li.innerHTML = `
-            <strong>${doc.name}</strong>
-            ${chunkInfo}
-            <button class="delete">❌</button>
-          `;
-          li.querySelector(".delete").onclick = () => {
-            fetch(`/admin/faqs/${doc.id}`, { method: "DELETE" }).then(() =>
-              loadFaqs()
-            );
-          };
-          faqList.appendChild(li);
-        });
-        filterDocs.dispatchEvent(new Event("change"));
-      });
-  }
+  document.getElementById("clearBtn").onclick = () => {
+    fetch("/admin/clear", { method: "POST" }).then(() => {
+      chatBox.innerHTML = "";
+    });
+  };
 
   // Autofocus on load
   msgBox.focus();

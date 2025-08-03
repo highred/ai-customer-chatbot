@@ -31,7 +31,6 @@
   </div>
 
   <div id="personalityPane" class="pane hidden">
-    <select id="personaSelector" style="display: none"></select>
     <div id="personaList" class="persona-list"></div>
     <div class="persona-controls">
       <button type="button" id="newPersona">New Persona</button>
@@ -58,10 +57,9 @@
     </div>
 
     <form id="faqForm">
-      <label>Upload docs (.txt, .pdf, .docx, .xls, .xlsx):</label>
       <div class="drop-box" id="dropBox">
         <p>📁 Drag & Drop files here or click to browse</p>
-        <p class="sub">Supported: .txt, .pdf, .docx, .xlsx</p>
+        <p class="sub">Supported: .txt, .pdf, .docx, .xls, .xlsx</p>
         <input type="file" id="faqFiles" name="files" multiple hidden />
       </div>
       <label>Chunk Size:
