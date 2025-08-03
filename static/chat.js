@@ -3,7 +3,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const chatBox = document.getElementById("chatBox");
   const sendBtn = document.getElementById("send");
   const spinner = document.getElementById("spinner");
-
   const personaSelect = document.getElementById("personaSelector");
   const tempSlider = document.getElementById("tempSlider");
 
@@ -20,7 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     appendMessage("You", message);
     msgInput.value = "";
-    msgInput.focus(); // 👈 KEEP CURSOR IN TEXTAREA
+    msgInput.focus();
     spinner.style.display = "inline-block";
 
     try {
@@ -45,7 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     spinner.style.display = "none";
-    msgInput.focus(); // 👈 ENSURE FOCUS AGAIN AFTER RESPONSE
+    msgInput.focus();
   };
 
   sendBtn.addEventListener("click", sendMessage);
@@ -56,7 +55,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Optional: Keep focus on tab switch back to Chat
   document.getElementById("chatTab")?.addEventListener("click", () => {
     setTimeout(() => msgInput.focus(), 100);
   });

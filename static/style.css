@@ -1,10 +1,8 @@
 body {
   font-family: Arial, sans-serif;
-  margin: 0;
-  padding: 0;
   background: #fff;
+  margin: 0;
   color: #000;
-  transition: background 0.3s, color 0.3s;
 }
 
 body.dark {
@@ -16,17 +14,12 @@ body.dark {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1em;
   background: #f5f5f5;
+  padding: 1em;
 }
 
 #branding.dark {
-  background: #1e1e1e;
-}
-
-#logo {
-  height: 40px;
-  margin-right: 1em;
+  background: #1f1f1f;
 }
 
 .brand-left {
@@ -34,33 +27,33 @@ body.dark {
   align-items: center;
 }
 
+#logo {
+  height: 40px;
+  margin-right: 1em;
+}
+
 #headerTitle {
   font-size: 1.5em;
   font-weight: bold;
-  border: none;
   background: transparent;
-  color: inherit;
+  border: none;
   outline: none;
+  color: inherit;
 }
 
 .tabs {
   display: flex;
-  border-bottom: 2px solid #ddd;
+  background: #eee;
 }
 
 .tabs button {
   flex: 1;
   padding: 0.75em;
   font-weight: bold;
-  background: #eee;
   border: none;
+  background: #eee;
   border-radius: 10px 10px 0 0;
   cursor: pointer;
-  transition: background 0.3s;
-}
-
-.tabs button:hover {
-  background: #ddd;
 }
 
 .tabs button.active {
@@ -78,34 +71,34 @@ body.dark {
 
 #chatBox {
   height: 350px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
   overflow-y: auto;
-  padding: 0.5em;
-  margin-bottom: 0.75em;
+  border: 1px solid #ccc;
   background: white;
+  padding: 0.5em;
+  border-radius: 5px;
+  margin-bottom: 0.75em;
 }
 
 .chat-input {
   display: flex;
   gap: 0.5em;
+  align-items: center;
 }
 
 #msg {
   flex: 1;
-  padding: 0.5em;
+  padding: 0.6em;
   font-size: 1em;
-  border: 1px solid #ccc;
   border-radius: 5px;
-  resize: vertical;
+  border: 1px solid #ccc;
 }
 
 #send {
   background: dodgerblue;
   color: white;
   border: none;
-  padding: 0.6em 1em;
   border-radius: 10px;
+  padding: 0.6em 1em;
   cursor: pointer;
 }
 
@@ -113,16 +106,12 @@ body.dark {
   background: #1e80ff;
 }
 
-#spinner {
-  align-self: center;
-}
-
 #spinner.dots::after {
   content: "";
   display: inline-block;
-  width: 1.2em;
-  text-align: left;
+  width: 1.5em;
   animation: dots 1.5s steps(4, end) infinite;
+  text-align: left;
 }
 
 @keyframes dots {
@@ -131,131 +120,4 @@ body.dark {
   50%  { content: ".."; }
   75%  { content: "..."; }
   100% { content: ""; }
-}
-
-textarea {
-  font-family: inherit;
-}
-
-.persona-list > div {
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 0.75em;
-  margin-bottom: 0.5em;
-  background: #f9f9f9;
-  display: flex;
-  flex-direction: column;
-}
-
-.persona-list textarea {
-  width: 100%;
-  margin-top: 0.25em;
-  resize: vertical;
-  padding: 0.5em;
-  border-radius: 5px;
-  border: 1px solid #aaa;
-}
-
-.persona-controls {
-  display: flex;
-  align-items: center;
-  gap: 1em;
-  margin-top: 1em;
-}
-
-.persona-list button {
-  margin-top: 0.5em;
-  width: 2em;
-  height: 2em;
-  border-radius: 50%;
-  border: none;
-  cursor: pointer;
-}
-
-.persona-list button.save {
-  background: dodgerblue;
-  color: white;
-}
-
-.persona-list button.delete {
-  background: crimson;
-  color: white;
-}
-
-.doc-controls,
-.doc-sorting {
-  margin: 1em 0;
-  display: flex;
-  align-items: center;
-  gap: 1em;
-}
-
-.drop-box {
-  border: 2px dashed #bbb;
-  border-radius: 8px;
-  padding: 1em;
-  text-align: center;
-  background: #fafafa;
-  cursor: pointer;
-  margin: 0.5em 0;
-}
-
-.drop-box:hover {
-  background: #f0f0f0;
-}
-
-.drop-box .sub {
-  font-size: 0.9em;
-  color: #666;
-}
-
-.faq-list {
-  list-style: none;
-  padding: 0;
-  margin-top: 1em;
-}
-
-.faq-list li {
-  padding: 0.75em;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  margin-bottom: 0.5em;
-  background: #fff;
-  display: flex;
-  justify-content: space-between;
-  flex-direction: column;
-}
-
-.faq-list li .meta {
-  font-size: 0.85em;
-  color: #444;
-  margin-top: 0.25em;
-}
-
-.faq-list button {
-  margin-top: 0.5em;
-  align-self: flex-end;
-  background: crimson;
-  color: white;
-  border: none;
-  padding: 0.3em 0.6em;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-button.danger {
-  background: crimson;
-  color: white;
-  padding: 0.7em 1.5em;
-  border: none;
-  border-radius: 20px;
-  font-weight: bold;
-  margin-top: 1em;
-  display: block;
-  width: 100%;
-  cursor: pointer;
-}
-
-button.danger:hover {
-  background: #a70000;
 }
