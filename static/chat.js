@@ -1,11 +1,11 @@
-// ── tab switching ────────────────────────────────────────────
-const chatTab       = document.getElementById("chatTab");
-const personalityTab= document.getElementById("personalityTab");
-const documentTab   = document.getElementById("documentTab");
+// ── Tab switching ───────────────────────────────────────────────
+const chatTab = document.getElementById("chatTab");
+const personalityTab = document.getElementById("personalityTab");
+const documentTab = document.getElementById("documentTab");
 
-const chatPane      = document.getElementById("chatPane");
+const chatPane = document.getElementById("chatPane");
 const personalityPane = document.getElementById("personalityPane");
-const documentPane  = document.getElementById("documentPane");
+const documentPane = document.getElementById("documentPane");
 
 function showTab(tab) {
   [chatTab, personalityTab, documentTab].forEach(btn => btn.classList.remove("active"));
@@ -27,28 +27,27 @@ personalityTab.onclick = () => showTab("personality");
 documentTab.onclick = () => showTab("documents");
 showTab("chat");
 
-// ── dark mode ────────────────────────────────────────────────
+// ── Dark mode ───────────────────────────────────────────────────
 const modeBtn = document.getElementById("modeBtn");
 modeBtn.onclick = () => {
   document.body.classList.toggle("dark");
   modeBtn.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
 };
 
-// ── editable title persistence ───────────────────────────────
+// ── Header title persistence ───────────────────────────────────
 const headerInput = document.getElementById("headerTitle");
 headerInput.value = localStorage.getItem("chatbotTitle") || "AI Customer Chatbot";
 headerInput.addEventListener("input", () => {
   localStorage.setItem("chatbotTitle", headerInput.value);
 });
 
-// ── chat functionality ───────────────────────────────────────
-const chatBox   = document.getElementById("chatBox");
-const textarea  = document.getElementById("msg");
-const sendBtn   = document.getElementById("send");
-const spinner   = document.getElementById("spinner");
-const personaSel= document.getElementById("personaSel");
-const tempSlider= document.getElementById("tempSlider");
-const tempVal   = document.getElementById("tempVal");
+// ── Chat logic ─────────────────────────────────────────────────
+const chatBox = document.getElementById("chatBox");
+const textarea = document.getElementById("msg");
+const sendBtn = document.getElementById("send");
+const spinner = document.getElementById("spinner");
+const tempSlider = document.getElementById("tempSlider");
+const tempVal = document.getElementById("tempVal");
 
 tempVal.textContent = (+tempSlider.value).toFixed(2);
 tempSlider.oninput = () => tempVal.textContent = (+tempSlider.value).toFixed(2);
@@ -63,6 +62,8 @@ const busy = (b) => {
 };
 const j = async (url, opts={}) => (await fetch(url, opts)).json();
 
+let activePersona = "Default";
+
 async function send() {
   const q = textarea.value.trim();
   if (!q) return;
@@ -76,7 +77,7 @@ async function send() {
     body: JSON.stringify({
       message: q,
       model: "gpt-4o",
-      persona: personaSel.value,
+      persona: activePersona,
       temperature: tempSlider.value
     })
   });
@@ -87,57 +88,83 @@ async function send() {
 }
 sendBtn.onclick = () => send();
 textarea.addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault(); send();
+  }
 });
 
-// ── persona management ───────────────────────────────────────
-const instBox = document.getElementById("instBox");
-const newPersona = document.getElementById("newPersona");
-const savePersona = document.getElementById("savePersona");
-const deletePersona = document.getElementById("deletePersona");
+// ── Persona list ───────────────────────────────────────────────
+const personaList = document.getElementById("personaList");
+const newPersonaBtn = document.getElementById("newPersona");
 
 async function loadPersonas() {
   const data = await j("/admin/personas");
-  personaSel.innerHTML = "";
-  Object.entries(data).forEach(([name]) => {
-    const o = document.createElement("option");
-    o.value = o.textContent = name;
-    personaSel.appendChild(o);
+  personaList.innerHTML = "";
+
+  Object.entries(data).forEach(([name, instructions]) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "persona-entry";
+
+    const title = document.createElement("b");
+    title.textContent = name;
+    wrapper.appendChild(title);
+
+    const textarea = document.createElement("textarea");
+    textarea.value = instructions;
+    wrapper.appendChild(textarea);
+
+    const controls = document.createElement("div");
+    controls.className = "controls";
+
+    const saveBtn = document.createElement("button");
+    saveBtn.textContent = "💾";
+    saveBtn.onclick = async () => {
+      await fetch("/admin/personas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, instructions: textarea.value })
+      });
+    };
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.textContent = "✕";
+    deleteBtn.className = "danger";
+    deleteBtn.onclick = async () => {
+      if (name === "Default" || !confirm(`Delete persona "${name}"?`)) return;
+      await fetch(`/admin/personas/${encodeURIComponent(name)}`, { method: "DELETE" });
+      loadPersonas();
+    };
+
+    controls.appendChild(saveBtn);
+    controls.appendChild(deleteBtn);
+    wrapper.appendChild(controls);
+    personaList.appendChild(wrapper);
   });
-  personaSel.value = "Default";
-  instBox.value = data["Default"];
+
+  activePersona = "Default";
 }
-personaSel.onchange = async () => {
-  instBox.value = (await j("/admin/personas"))[personaSel.value] || "";
-};
-savePersona.onclick = async () => {
-  await fetch("/admin/personas", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: personaSel.value, instructions: instBox.value })
-  });
-  loadPersonas();
-};
-newPersona.onclick = () => {
-  const n = prompt("New persona name:");
-  if (n) { personaSel.value = n; instBox.value = ""; }
-};
-deletePersona.onclick = async () => {
-  const n = personaSel.value;
-  if (n === "Default" || !confirm(`Delete persona "${n}"?`)) return;
-  await fetch(`/admin/personas/${encodeURIComponent(n)}`, { method: "DELETE" });
-  loadPersonas();
+newPersonaBtn.onclick = () => {
+  const name = prompt("New persona name:");
+  if (name) {
+    fetch("/admin/personas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, instructions: "" })
+    }).then(loadPersonas);
+  }
 };
 loadPersonas();
 
-// ── drag & drop for documents ────────────────────────────────
-const faqForm   = document.getElementById("faqForm");
-const faqFiles  = document.getElementById("faqFiles");
-const dropBox   = document.getElementById("dropBox");
-const uploadBtn = document.getElementById("uploadBtn");
-const faqList   = document.getElementById("faqList");
-const clearBtn  = document.getElementById("clearBtn");
+// ── File upload + sorting/filtering ───────────────────────────
+const faqForm = document.getElementById("faqForm");
+const faqFiles = document.getElementById("faqFiles");
+const dropBox = document.getElementById("dropBox");
+const faqList = document.getElementById("faqList");
 const chunkSizeSel = document.getElementById("chunkSize");
+const clearBtn = document.getElementById("clearBtn");
+
+const filterDocs = document.getElementById("filterDocs");
+const sortDocs = document.getElementById("sortDocs");
 
 dropBox.addEventListener("click", () => faqFiles.click());
 dropBox.addEventListener("dragover", e => {
@@ -152,11 +179,9 @@ dropBox.addEventListener("drop", e => {
   faqForm.dispatchEvent(new Event("submit"));
 });
 
-// ── Chunk size memory ────────────────────────────────────────
 chunkSizeSel.value = localStorage.getItem("chunkSize") || "50";
 chunkSizeSel.onchange = () => localStorage.setItem("chunkSize", chunkSizeSel.value);
 
-// ── Upload & List Docs ───────────────────────────────────────
 faqForm.onsubmit = async (e) => {
   e.preventDefault();
   const fd = new FormData();
@@ -171,13 +196,51 @@ faqForm.onsubmit = async (e) => {
   listFaqs(uploaded);
 };
 
-async function listFaqs(uploaded = []) {
-  const docs = await j("/admin/faqs");
-  faqList.innerHTML = "";
+clearBtn.onclick = async () => {
+  await fetch("/admin/clear", { method: "POST" });
+  chatBox.innerHTML = "";
+};
 
+filterDocs.onchange = listFaqs;
+sortDocs.onchange = listFaqs;
+
+async function listFaqs(override = null) {
+  let docs = await j("/admin/faqs");
+  const type = filterDocs.value;
+  const sort = sortDocs.value;
+
+  if (type !== "all") {
+    docs = docs.filter(d => d.name.toLowerCase().endsWith(type));
+  }
+
+  if (sort === "name") {
+    docs.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (sort === "date") {
+    docs.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
+  } else if (sort === "type") {
+    docs.sort((a, b) => {
+      const extA = a.name.split('.').pop(), extB = b.name.split('.').pop();
+      return extA.localeCompare(extB);
+    });
+  }
+
+  faqList.innerHTML = "";
   docs.forEach(d => {
     const li = document.createElement("li");
-    li.innerHTML = `<b>${d.name}</b>`;
+
+    const row = document.createElement("div");
+    row.className = "file-row";
+    row.innerHTML = `<b>${d.name}</b>`;
+
+    const del = document.createElement("button");
+    del.textContent = "✕";
+    del.className = "danger";
+    del.onclick = async () => {
+      await fetch(`/admin/faqs/${d.id}`, { method: "DELETE" });
+      listFaqs();
+    };
+    row.appendChild(del);
+    li.appendChild(row);
 
     if (d.chunks != null) {
       const meta = document.createElement("div");
@@ -186,21 +249,7 @@ async function listFaqs(uploaded = []) {
       li.appendChild(meta);
     }
 
-    const x = document.createElement("button");
-    x.textContent = "✕";
-    x.className = "danger";
-    x.onclick = async () => {
-      await fetch(`/admin/faqs/${d.id}`, { method: "DELETE" });
-      listFaqs();
-    };
-    li.appendChild(x);
     faqList.appendChild(li);
   });
 }
 listFaqs();
-
-// ── Clear chat ───────────────────────────────────────────────
-clearBtn.onclick = async () => {
-  await fetch("/admin/clear", { method: "POST" });
-  chatBox.innerHTML = "";
-};

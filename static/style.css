@@ -42,14 +42,6 @@ body.dark {
   border-bottom: 1px dashed #888;
 }
 
-/* Mode toggle */
-#modeBtn {
-  font-size: 20px;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
 /* Tabs */
 .tabs {
   display: flex;
@@ -75,7 +67,7 @@ body.dark {
   background: #d0e6ff;
 }
 
-/* Panes */
+/* Pane Layout */
 .pane {
   display: flex;
   flex-direction: column;
@@ -113,7 +105,7 @@ body.dark {
   margin-left: 10px;
 }
 
-/* Inputs & Controls */
+/* Inputs */
 textarea,
 input[type="text"],
 select {
@@ -148,7 +140,39 @@ button.danger {
   background: #dc3545;
 }
 
-/* Drag & Drop Box */
+/* FAQ File List */
+ul.faq-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 12px;
+}
+ul.faq-list li {
+  display: flex;
+  flex-direction: column;
+  background: #f4f4f4;
+  border: 1px solid #ccc;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  position: relative;
+}
+ul.faq-list li .meta {
+  font-size: 0.85em;
+  color: #444;
+  margin-top: 4px;
+}
+ul.faq-list li .file-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+ul.faq-list li button {
+  background: #dc3545;
+  color: white;
+  margin-left: 10px;
+}
+
+/* Drag-and-drop */
 .drop-box {
   border: 2px dashed #aaa;
   border-radius: 10px;
@@ -174,30 +198,42 @@ button.danger {
   border-color: #44f;
 }
 
-/* File List */
-ul.faq-list {
-  list-style: none;
-  padding: 0;
-  margin-top: 12px;
+/* Sorting + Filtering */
+.doc-controls,
+.doc-sorting {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
 }
-ul.faq-list li {
-  background: #f4f4f4;
+.doc-controls label,
+.doc-sorting label {
+  margin: 0;
+  font-weight: normal;
+}
+
+/* Persona Management */
+.persona-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.persona-entry {
+  display: flex;
+  flex-direction: column;
+  background: #f0f0f0;
+  padding: 10px;
   border: 1px solid #ccc;
-  padding: 10px 12px;
-  margin-bottom: 10px;
   border-radius: 10px;
-  position: relative;
 }
-ul.faq-list li .meta {
-  font-size: 0.85em;
-  color: #444;
-  margin-top: 4px;
+.persona-entry textarea {
+  resize: vertical;
+  margin-bottom: 8px;
 }
-ul.faq-list li button {
-  float: right;
-  background: #dc3545;
-  color: white;
-  margin-left: 10px;
+.persona-entry .controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 /* Range slider */
@@ -205,7 +241,7 @@ input[type="range"] {
   vertical-align: middle;
 }
 
-/* Dark mode elements */
+/* Dark mode */
 body.dark textarea,
 body.dark input,
 body.dark select {
@@ -215,7 +251,8 @@ body.dark select {
 }
 body.dark #chatBox,
 body.dark .drop-box,
-body.dark ul.faq-list li {
+body.dark ul.faq-list li,
+body.dark .persona-entry {
   background: #2a2a2a;
   border-color: #444;
 }
